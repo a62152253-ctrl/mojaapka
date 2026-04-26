@@ -184,19 +184,9 @@ export default function EnhancedCodeEditor({
     }
   }, [activeFile, onRun])
 
-  const generatePreview = useCallback(() => {
-    if (!activeFile) return
+  const generateHtmlPreview = (content: string) => content
 
-    try {
-      setPreviewError('')
-      
-      const language = activeFile.language.toLowerCase()
-      let htmlContent = ''
-
-      if (language === 'html') {
-        htmlContent = activeFile.content
-      } else if (language === 'javascript' || language === 'typescript') {
-        htmlContent = `<!DOCTYPE html>
+  const generateJavaScriptPreview = (content: string) => `<!DOCTYPE html>
 <html>
 <head>
   <style>
@@ -209,7 +199,7 @@ export default function EnhancedCodeEditor({
   <div id="app"></div>
   <script>
     try {
-      ${activeFile.content}
+      ${content}
       if (typeof result !== 'undefined') {
         document.getElementById('app').innerHTML = '<div class="output">✅ ' + result + '</div>';
       } else {
@@ -221,12 +211,12 @@ export default function EnhancedCodeEditor({
   </script>
 </body>
 </html>`
-      } else if (language === 'css') {
-        htmlContent = `<!DOCTYPE html>
+
+  const generateCssPreview = (content: string) => `<!DOCTYPE html>
 <html>
 <head>
   <style>
-    ${activeFile.content}
+    ${content}
     body { font-family: 'Inter', sans-serif; padding: 20px; background: #f8fafc; }
     .demo { background: white; padding: 20px; border-radius: 8px; margin: 10px 0; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
     h1 { color: #1f2937; margin-bottom: 1rem; }
@@ -244,13 +234,33 @@ export default function EnhancedCodeEditor({
   </div>
 </body>
 </html>`
-      } else {
-        htmlContent = `<div style="padding: 20px; font-family: 'Inter', sans-serif;">
-          <h2>Preview not available for ${language}</h2>
-          <p>Try HTML, CSS, or JavaScript files for live preview.</p>
-        </div>`
-      }
 
+  const generateUnsupportedPreview = (language: string) => `<div style="padding: 20px; font-family: 'Inter', sans-serif;">
+    <h2>Preview not available for ${language}</h2>
+    <p>Try HTML, CSS, or JavaScript files for live preview.</p>
+  </div>`
+
+  const getPreviewContent = (language: string, content: string) => {
+    switch (language) {
+      case 'html':
+        return generateHtmlPreview(content)
+      case 'javascript':
+      case 'typescript':
+        return generateJavaScriptPreview(content)
+      case 'css':
+        return generateCssPreview(content)
+      default:
+        return generateUnsupportedPreview(language)
+    }
+  }
+
+  const generatePreview = useCallback(() => {
+    if (!activeFile) return
+
+    try {
+      setPreviewError('')
+      const language = activeFile.language.toLowerCase()
+      const htmlContent = getPreviewContent(language, activeFile.content)
       setPreviewContent(htmlContent)
     } catch (error) {
       setPreviewError('Error generating preview')

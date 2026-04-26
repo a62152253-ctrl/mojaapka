@@ -36,13 +36,53 @@ export default function CodeSplitter({
     document.addEventListener('mouseup', handleMouseUp)
   }
 
-  const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (isDragging === null || !containerRef.current) return
-
+  const getContainerDimensions = () => {
+    if (!containerRef.current) return { containerSize: 0, containerRect: null }
+    
     const containerRect = containerRef.current.getBoundingClientRect()
     const containerSize = direction === 'horizontal' ? containerRect.width : containerRect.height
-    const mousePos = direction === 'horizontal' ? e.clientX - containerRect.left : e.clientY - containerRect.top
+    
+    return { containerSize, containerRect }
+  }
 
+  const getMousePosition = (e: MouseEvent, containerRect: DOMRect) => {
+    return direction === 'horizontal' ? e.clientX - containerRect.left : e.clientY - containerRect.top
+  }
+
+  const calculateNewPaneSize = (mousePos: number, accumulatedSize: number, containerSize: number, paneIndex: number) => {
+    const pane = panes[paneIndex]
+    const rawSize = Math.max(0, mousePos - accumulatedSize)
+    
+    return Math.max(
+      pane.minSize || 50,
+      Math.min(
+        pane.maxSize || containerSize,
+        rawSize
+      )
+    )
+  }
+
+  const normalizeSizes = (newSizes: number[]) => {
+    const total = newSizes.reduce((sum, size, i) => collapsedPanes.has(panes[i].id) ? sum : sum + size, 0)
+    
+    if (total > 0) {
+      for (let i = 0; i < newSizes.length; i++) {
+        if (!collapsedPanes.has(panes[i].id)) {
+          newSizes[i] = (newSizes[i] / total) * 100
+        }
+      }
+    }
+    
+    return newSizes
+  }
+
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    if (isDragging === null) return
+
+    const { containerSize, containerRect } = getContainerDimensions()
+    if (containerSize === 0 || !containerRect) return
+
+    const mousePos = getMousePosition(e, containerRect)
     const newSizes = [...sizes]
     const totalSize = sizes.reduce((sum, size, i) => collapsedPanes.has(panes[i].id) ? sum : sum + size, 0)
     
@@ -52,13 +92,7 @@ export default function CodeSplitter({
     for (let i = 0; i <= isDragging; i++) {
       if (!collapsedPanes.has(panes[i].id)) {
         if (i === isDragging) {
-          const paneSize = Math.max(
-            panes[i].minSize || 50,
-            Math.min(
-              panes[i].maxSize || containerSize,
-              Math.max(0, mousePos - accumulatedSize)
-            )
-          )
+          const paneSize = calculateNewPaneSize(mousePos, accumulatedSize, containerSize, i)
           newSizes[i] = (paneSize / containerSize) * 100
           break
         }
@@ -66,18 +100,9 @@ export default function CodeSplitter({
       }
     }
 
-    // Normalize sizes to 100%
-    const total = newSizes.reduce((sum, size, i) => collapsedPanes.has(panes[i].id) ? sum : sum + size, 0)
-    if (total > 0) {
-      for (let i = 0; i < newSizes.length; i++) {
-        if (!collapsedPanes.has(panes[i].id)) {
-          newSizes[i] = (newSizes[i] / total) * 100
-        }
-      }
-    }
-
-    setSizes(newSizes)
-    onSizeChange?.(newSizes)
+    const normalizedSizes = normalizeSizes(newSizes)
+    setSizes(normalizedSizes)
+    onSizeChange?.(normalizedSizes)
   }, [isDragging, sizes, collapsedPanes, panes, direction, onSizeChange])
 
   const handleMouseUp = useCallback(() => {

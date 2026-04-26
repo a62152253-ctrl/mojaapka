@@ -73,6 +73,88 @@ export default function Login() {
     }
   }, [navigate])
 
+  const validateRegistration = () => {
+    if (formData.password.length < 6) {
+      setError('Password must be at least 6 characters')
+      return false
+    }
+    
+    if (formData.password !== formData.confirmPassword) {
+      setError('Passwords do not match')
+      return false
+    }
+    
+    if (!formData.email.includes('@')) {
+      setError('Please enter a valid email address')
+      return false
+    }
+    
+    return true
+  }
+
+  const validateEmail = (email: string) => {
+    return email.includes('@')
+  }
+
+  const handleAuthSuccess = (user: User, token: string, message: string) => {
+    localStorage.setItem('token', token)
+    apiClient.setToken(token)
+    setSuccess(message)
+    
+    setTimeout(() => {
+      if (user.accountType === 'DEVELOPER') {
+        navigate('/dashboard')
+      } else {
+        navigate('/')
+      }
+    }, 1500)
+  }
+
+  const handleLogin = async () => {
+    const response = await apiClient.login({
+      username: formData.username,
+      password: formData.password,
+      accountType: accountType
+    })
+    
+    if (response.success && response.data) {
+      const { user, token } = response.data
+      handleAuthSuccess(user, token, 'Login successful! Redirecting...')
+    } else {
+      setError(response.error || 'Login failed')
+    }
+  }
+
+  const handleRegister = async () => {
+    if (!validateRegistration()) {
+      return
+    }
+    
+    const response = await apiClient.register({
+      email: formData.email,
+      username: formData.username.trim(),
+      password: formData.password,
+      accountType: accountType
+    })
+    
+    if (response.success && response.data) {
+      const { user, token } = response.data
+      handleAuthSuccess(user, token, 'Registration successful!')
+    } else {
+      setError(response.error || 'Registration failed')
+    }
+  }
+
+  const handleForgotPassword = async () => {
+    if (!validateEmail(formData.email)) {
+      setError('Please enter a valid email address')
+      return
+    }
+    
+    setSuccess('Password reset link sent to your email')
+    setTimeout(() => switchView('login'), 2000)
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
@@ -81,89 +163,11 @@ export default function Login() {
     
     try {
       if (currentView === 'login') {
-        const response = await apiClient.login({
-          username: formData.username,
-          password: formData.password,
-          accountType: accountType
-        })
-        
-        if (response.success && response.data) {
-          const { user, token } = response.data
-          
-          // Store token
-          localStorage.setItem('token', token)
-          apiClient.setToken(token)
-          
-          setSuccess('Login successful! Redirecting...')
-          
-          // Redirect based on account type
-          setTimeout(() => {
-            if (user.accountType === 'DEVELOPER') {
-              navigate('/dashboard')
-            } else {
-              navigate('/')
-            }
-          }, 1500)
-        } else {
-          setError(response.error || 'Login failed')
-        }
+        await handleLogin()
       } else if (currentView === 'register') {
-        // Validation
-        if (formData.password.length < 6) {
-          setError('Password must be at least 6 characters')
-          setLoading(false)
-          return
-        }
-        
-        if (formData.password !== formData.confirmPassword) {
-          setError('Passwords do not match')
-          setLoading(false)
-          return
-        }
-        
-        if (!formData.email.includes('@')) {
-          setError('Please enter a valid email address')
-          setLoading(false)
-          return
-        }
-        
-        const response = await apiClient.register({
-          email: formData.email,
-          username: formData.username.trim(),
-          password: formData.password,
-          accountType: accountType
-        })
-        
-        if (response.success && response.data) {
-          const { user, token } = response.data
-          
-          // Store token
-          localStorage.setItem('token', token)
-          apiClient.setToken(token)
-          
-          setSuccess('Registration successful!')
-          
-          // Redirect based on account type
-          setTimeout(() => {
-            if (user.accountType === 'DEVELOPER') {
-              navigate('/dashboard')
-            } else {
-              navigate('/')
-            }
-          }, 1500)
-        } else {
-          setError(response.error || 'Registration failed')
-        }
+        await handleRegister()
       } else if (currentView === 'forgot') {
-        // Simulate password reset
-        if (!formData.email.includes('@')) {
-          setError('Please enter a valid email address')
-          setLoading(false)
-          return
-        }
-        
-        setSuccess('Password reset link sent to your email')
-        setTimeout(() => switchView('login'), 2000)
+        await handleForgotPassword()
       }
     } catch (error) {
       console.error('Auth error:', error)

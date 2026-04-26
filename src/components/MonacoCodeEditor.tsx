@@ -508,14 +508,15 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
     return () => window.clearInterval(interval)
   }, [collaborationWorkspace, sendCollaborationMessage])
 
-  useEffect(() => {
-    const cleanup = window.setInterval(() => {
-      const now = Date.now()
-      setCollaborators((current) =>
-        current.filter((presence) => now - new Date(presence.lastSeen).getTime() < 30000),
-      )
-    }, 5000)
+  const cleanupStaleCollaborators = () => {
+    const now = Date.now()
+    setCollaborators((current) =>
+      current.filter((presence) => now - new Date(presence.lastSeen).getTime() < 30000),
+    )
+  }
 
+  useEffect(() => {
+    const cleanup = window.setInterval(cleanupStaleCollaborators, 5000)
     return () => window.clearInterval(cleanup)
   }, [])
 
@@ -570,21 +571,25 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
       'file:///node_modules/@types/react/index.d.ts',
     )
 
-    languageConfigs.forEach((language) => {
-      if (!language.snippets || language.snippets.length === 0) return
+    const createCompletionProvider = (language: any, monaco: any) => {
+    if (!language.snippets || language.snippets.length === 0) return
 
-      monaco.languages.registerCompletionItemProvider(language.id, {
-        provideCompletionItems: () => ({
-          suggestions: language.snippets!.map((snippet) => ({
-            label: snippet.name,
-            kind: monaco.languages.CompletionItemKind.Snippet,
-            insertText: snippet.code,
-            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-            documentation: snippet.description,
-          })),
-        }),
-      })
+    monaco.languages.registerCompletionItemProvider(language.id, {
+      provideCompletionItems: () => ({
+        suggestions: language.snippets!.map((snippet: any) => ({
+          label: snippet.name,
+          kind: monaco.languages.CompletionItemKind.Snippet,
+          insertText: snippet.code,
+          insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+          documentation: snippet.description,
+        })),
+      }),
     })
+  }
+
+  languageConfigs.forEach((language) => {
+    createCompletionProvider(language, monaco)
+  })
   }, [])
 
   const handleEditorDidMount = useCallback((editor: any, monaco: any) => {
