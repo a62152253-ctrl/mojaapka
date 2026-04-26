@@ -1,0 +1,36 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "useDefineForClassFields": true,
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "noFallthroughCasesInSwitch": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    }
+  },
+  "include": ["src"],
+  "exclude": [
+    "src/components/AppLayout.tsx",
+    "src/components/CodeEditor.tsx",
+    "src/components/editor/CodeEditorUtils.ts",
+    "src/components/editor/EnhancedCodeEditor.tsx",
+    "src/components/editor/ESLintIntegration.ts",
+    "src/components/editor/PrettierFormatter.ts",
+    "src/components/editor/index.ts",
+    "src/components/EnhancedCodeEditor.tsx",
+    "src/pages/ProjectDetail.tsx"
+  ],
+  "references": [{ "path": "./tsconfig.node.json" }]
+}
