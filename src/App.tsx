@@ -5,7 +5,7 @@ import ProjectViewer from './components/ProjectViewer'
 import CreateProject from './pages/CreateProject'
 import UserProfile from './pages/UserProfile'
 import Login from './pages/Login'
-import DashboardPage from '../pages/dashboard'
+import DashboardPage from '../pages/dashboard/index'
 import TestEditor from './pages/TestEditor'
 import Notifications from './pages/Notifications'
 import LiveWorkspace from './pages/LiveWorkspace'
@@ -117,7 +117,7 @@ function AppRoutes() {
         path="/projects" 
         element={
           <ProtectedRoute>
-            <Projects />
+            <Projects user={user!} />
           </ProtectedRoute>
         } 
       />

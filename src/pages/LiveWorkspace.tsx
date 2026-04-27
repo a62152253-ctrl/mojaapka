@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react'
-import { Play, Save, FolderOpen, Settings, Terminal, Eye, GitBranch, Users, Share2, Zap, Video, MessageSquare, Mic, MicOff, VideoOff, Monitor, Smartphone, Tablet, Code, FileText, Image, Music, Download, Upload, RefreshCw, Copy, Check, X, ChevronDown, Plus, Minus, Maximize2, Volume2, VolumeX, Briefcase, Moon, Sun, Palette, ExternalLink, Edit, Trash2, Layout, Layers, PictureInPicture, Bot, Sparkles, BookOpen } from 'lucide-react'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { Play, Save, FolderOpen, Settings, Terminal, Eye, GitBranch, Users, Share2, Zap, Video, MessageSquare, Mic, MicOff, VideoOff, Monitor, Smartphone, Tablet, Code, FileText, Image, Music, Download, Upload, RefreshCw, Copy, Check, X, ChevronDown, Plus, Minus, Maximize2, Volume2, VolumeX, Briefcase, Moon, Sun, Palette, ExternalLink, Edit, Trash2, Layout, Layers, PictureInPicture, Bot, Sparkles, BookOpen, ChevronLeft, ChevronRight } from 'lucide-react'
 import Editor from '@monaco-editor/react'
 import { useNavigate } from 'react-router-dom'
 import FileUploader from '../components/workspace/FileUploader'
@@ -180,6 +180,65 @@ root.render(<App />);`
   const [selectedCategory, setSelectedCategory] = useState('all')
   const [templateSearch, setTemplateSearch] = useState('')
   
+  // File Tabs state
+  const [openTabs, setOpenTabs] = useState(() => {
+    const initialCode = `// Live Workspace - Real-time Collaboration
+// Start coding and see changes instantly
+
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+
+function App() {
+  const [count, setCount] = useState(0);
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 p-8">
+      <div className="max-w-4xl mx-auto">
+        <h1 className="text-4xl font-bold text-gray-900 mb-4">
+          Live Workspace
+        </h1>
+        <p className="text-gray-600 mb-8">
+          Real-time collaborative coding environment
+        </p>
+        
+        <div className="bg-white rounded-lg shadow-lg p-6">
+          <h2 className="text-2xl font-semibold mb-4">Interactive Demo</h2>
+          <p className="text-gray-600 mb-4">
+            Current count: <span className="font-bold text-blue-600">{count}</span>
+          </p>
+          <button
+            onClick={() => setCount(count + 1)}
+            className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700"
+          >
+            Increment Count
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App />);`
+    
+    return [
+      { id: 'index.js', name: 'index.js', content: initialCode, isDirty: false, isActive: true }
+    ]
+  })
+  const [tabOrder, setTabOrder] = useState(['index.js'])
+  const [draggedTab, setDraggedTab] = useState<string | null>(null)
+  const [navigationHistory, setNavigationHistory] = useState<string[]>([])
+  const [historyIndex, setHistoryIndex] = useState(-1)
+  
+  // Go to Definition state
+  const [definitionPosition, setDefinitionPosition] = useState<{ line: number; column: number } | null>(null)
+  const [isNavigating, setIsNavigating] = useState(false)
+  
+  // Enhanced Console state
+  const [consoleFilter, setConsoleFilter] = useState<'all' | 'log' | 'error' | 'warn'>('all')
+  const [consoleSearch, setConsoleSearch] = useState('')
+  const [expandedLogs, setExpandedLogs] = useState<Set<number>>(new Set())
+  
   const editorRef = useRef<any>(null)
   const editorRef2 = useRef<any>(null)
 
@@ -204,10 +263,29 @@ root.render(<App />);`
     const userId = `user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
     const ws = createWorkspaceConnection(workspaceId, userId)
     
-    ws.connect().then(() => {
-      console.log('WebSocket connected to workspace:', workspaceId)
-      ws.joinWorkspace()
-    }).catch(console.error)
+    const connectWithRetry = async (maxRetries = 3, delay = 1000) => {
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          await ws.connect()
+          console.log('WebSocket connected to workspace:', workspaceId)
+          ws.joinWorkspace()
+          return true
+        } catch (error) {
+          console.error(`WebSocket connection attempt ${attempt} failed:`, error)
+          if (attempt === maxRetries) {
+            showToast('Failed to connect to workspace after multiple attempts', 'error')
+            return false
+          }
+          await new Promise(resolve => setTimeout(resolve, delay * attempt))
+        }
+      }
+      return false
+    }
+    
+    connectWithRetry().catch((error) => {
+      console.error('WebSocket connection failed:', error)
+      showToast('WebSocket connection unavailable', 'error')
+    })
 
     // Set up event listeners
     ws.onConnectionChange((connected) => {
@@ -247,9 +325,23 @@ root.render(<App />);`
     setWsConnection(ws)
 
     return () => {
-      ws.disconnect()
+      try {
+        ws.disconnect()
+      } catch (error) {
+        console.error('Error disconnecting WebSocket:', error)
+      }
     }
   }, [workspaceId])
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      // Clean up any ongoing operations
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl)
+      }
+    }
+  }, [previewUrl])
 
   // Split screen functions
   const toggleSplitScreen = () => {
@@ -321,15 +413,49 @@ root.render(<App />);`
     }
   }, [isDraggingPiP, dragOffset])
 
-  // Send file updates via WebSocket
+  // Send file updates via WebSocket - with safety checks
   useEffect(() => {
-    if (wsConnection && isWebSocketConnected) {
-      wsConnection.sendFileUpdate(activeFile, code)
-      if (isSplitScreen) {
-        wsConnection.sendFileUpdate(activeFile2, code2)
+    if (wsConnection && isWebSocketConnected && activeFile && code) {
+      try {
+        wsConnection.sendFileUpdate(activeFile, code)
+        if (isSplitScreen && activeFile2 && code2) {
+          wsConnection.sendFileUpdate(activeFile2, code2)
+        }
+      } catch (error) {
+        console.error('Failed to send file update:', error)
       }
     }
   }, [code, activeFile, code2, activeFile2, wsConnection, isWebSocketConnected, isSplitScreen])
+
+  // Optimized file change handler
+  const handleFileChange = useCallback((newCode: string) => {
+    if (typeof newCode !== 'string') {
+      console.error('Invalid code provided to handleFileChange')
+      return
+    }
+    
+    setCode(newCode)
+    
+    // Update tab content
+    setOpenTabs(prev => prev.map(tab => 
+      tab.name === activeFile ? { ...tab, content: newCode, isDirty: true } : tab
+    ))
+  }, [activeFile])
+
+  // Optimized file change handler for second editor
+  const handleFileChange2 = useCallback((newCode: string) => {
+    if (typeof newCode !== 'string') {
+      console.error('Invalid code provided to handleFileChange2')
+      return
+    }
+    
+    setCode2(newCode)
+    
+    // Update tab content
+    setOpenTabs(prev => prev.map(tab => 
+      tab.name === activeFile2 ? { ...tab, content: newCode, isDirty: true } : tab
+    ))
+  }, [activeFile2])
 
   // Auto-refresh in live mode
   useEffect(() => {
@@ -389,12 +515,222 @@ root.render(<App />);`
   
   // Toast notification helper
   const showToast = (message: string, type: 'success' | 'error' | 'warning' = 'success') => {
-    const toast = document.createElement('div')
-    const bgColor = type === 'success' ? 'bg-green-600' : type === 'error' ? 'bg-red-600' : 'bg-yellow-600'
-    toast.className = `fixed top-4 right-4 ${bgColor} text-white px-4 py-2 rounded-lg shadow-lg z-50 animate-pulse`
-    toast.textContent = message
-    document.body.appendChild(toast)
-    setTimeout(() => toast.remove(), 3000)
+    try {
+      const toast = document.createElement('div')
+      const bgColor = type === 'success' ? 'bg-green-600' : type === 'error' ? 'bg-red-600' : 'bg-yellow-600'
+      toast.className = `fixed top-4 right-4 ${bgColor} text-white px-4 py-2 rounded-lg shadow-lg z-50 animate-pulse`
+      toast.textContent = message
+      document.body.appendChild(toast)
+      setTimeout(() => {
+        if (toast.parentNode) {
+          toast.parentNode.removeChild(toast)
+        }
+      }, 3000)
+    } catch (error) {
+      console.error('Failed to show toast:', error)
+    }
+  }
+
+  // File Tabs functions
+  const openFileInTab = (file: any) => {
+    if (!file || !file.name || !file.content) {
+      showToast('Invalid file data', 'error')
+      return
+    }
+
+    const existingTab = openTabs.find(tab => tab.name === file.name)
+    
+    if (existingTab) {
+      // Switch to existing tab
+      setActiveFile(file.name)
+      setCode(file.content)
+      setOpenTabs(prev => prev.map(tab => 
+        tab.name === file.name ? { ...tab, isActive: true } : { ...tab, isActive: false }
+      ))
+    } else {
+      // Open new tab
+      const newTab = {
+        id: file.name,
+        name: file.name,
+        content: file.content,
+        isDirty: false,
+        isActive: true
+      }
+      
+      setOpenTabs(prev => [...prev.map(tab => ({ ...tab, isActive: false })), newTab])
+      setTabOrder(prev => [...prev, file.name])
+      setActiveFile(file.name)
+      setCode(file.content)
+    }
+    
+    // Add to navigation history
+    setNavigationHistory(prev => [...prev.slice(0, historyIndex + 1), file.name])
+    setHistoryIndex(prev => prev + 1)
+  }
+
+  const closeTab = (tabName: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation()
+    
+    if (!tabName) {
+      showToast('Invalid tab name', 'error')
+      return
+    }
+    
+    const tab = openTabs.find(t => t.name === tabName)
+    if (tab?.isDirty) {
+      if (!confirm(`Save changes to ${tabName} before closing?`)) {
+        return
+      }
+    }
+    
+    const newTabs = openTabs.filter(t => t.name !== tabName)
+    const newOrder = tabOrder.filter(t => t !== tabName)
+    
+    if (newTabs.length === 0) {
+      // Don't close the last tab
+      showToast('Cannot close the last tab', 'warning')
+      return
+    }
+    
+    // If closing active tab, switch to another
+    if (activeFile === tabName) {
+      const nextTab = newTabs.find(t => t.isActive) || newTabs[0]
+      if (nextTab) {
+        setActiveFile(nextTab.name)
+        setCode(nextTab.content)
+        setOpenTabs(prev => prev.map(t => 
+          t.name === nextTab.name ? { ...t, isActive: true } : t
+        ))
+      }
+    }
+    
+    setOpenTabs(newTabs)
+    setTabOrder(newOrder)
+  }
+
+  const handleTabDragStart = (tabName: string) => {
+    setDraggedTab(tabName)
+  }
+
+  const handleTabDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+  }
+
+  const handleTabDrop = (targetTabName: string, e: React.DragEvent) => {
+    e.preventDefault()
+    if (!draggedTab || draggedTab === targetTabName) return
+    
+    const draggedIndex = tabOrder.indexOf(draggedTab)
+    const targetIndex = tabOrder.indexOf(targetTabName)
+    
+    const newOrder = [...tabOrder]
+    newOrder.splice(draggedIndex, 1)
+    newOrder.splice(targetIndex, 0, draggedTab)
+    
+    setTabOrder(newOrder)
+    setDraggedTab(null)
+  }
+
+  // Go to Definition functions
+  const goToDefinition = () => {
+    if (!editorRef.current) {
+      showToast('Editor not available', 'error')
+      return
+    }
+    
+    const editor = editorRef.current
+    const position = editor.getPosition()
+    const model = editor.getModel()
+    
+    if (!model || !position) {
+      showToast('No active file', 'error')
+      return
+    }
+    
+    const word = model.getWordAtPosition(position)
+    if (!word || !word.word) {
+      showToast('No word selected', 'warning')
+      return
+    }
+    
+    // Simple definition finding (for demo purposes)
+    const wordText = word.word
+    const text = model.getValue()
+    const lines = text.split('\n')
+    
+    // Look for function definitions
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i]
+      if (line.includes(`function ${wordText}(`) || line.includes(`const ${wordText} = `) || line.includes(`let ${wordText} = `)) {
+        setIsNavigating(true)
+        setDefinitionPosition({ line: i + 1, column: line.indexOf(wordText) + 1 })
+        
+        // Navigate to the definition
+        editor.setPosition({ lineNumber: i + 1, column: line.indexOf(wordText) + 1 })
+        editor.revealLineInCenter(i + 1)
+        
+        setTimeout(() => {
+          setIsNavigating(false)
+          setDefinitionPosition(null)
+        }, 1000)
+        
+        showToast(`Found definition: ${wordText}`, 'success')
+        return
+      }
+    }
+    
+    showToast(`Definition not found: ${wordText}`, 'warning')
+  }
+
+  // Enhanced Console functions
+  const clearConsole = () => {
+    try {
+      setConsoleLogs([])
+      showToast('Console cleared', 'success')
+    } catch (error) {
+      console.error('Error clearing console:', error)
+      showToast('Error clearing console', 'error')
+    }
+  }
+
+  const exportConsoleLogs = () => {
+    try {
+      const logs = consoleLogs
+        .filter(log => consoleFilter === 'all' || log.type === consoleFilter)
+        .filter(log => !consoleSearch || log.message.includes(consoleSearch))
+        .map(log => `[${log.type.toUpperCase()}] ${log.message}`)
+        .join('\n')
+      
+      if (!logs) {
+        showToast('No logs to export', 'warning')
+        return
+      }
+      
+      const blob = new Blob([logs], { type: 'text/plain' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `console-logs-${Date.now()}.txt`
+      a.click()
+      URL.revokeObjectURL(url)
+      
+      showToast('Console logs exported', 'success')
+    } catch (error) {
+      console.error('Error exporting logs:', error)
+      showToast('Error exporting logs', 'error')
+    }
+  }
+
+  const toggleLogExpansion = (index: number) => {
+    setExpandedLogs(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(index)) {
+        newSet.delete(index)
+      } else {
+        newSet.add(index)
+      }
+      return newSet
+    })
   }
 
   const handleSendMessage = () => {
@@ -570,42 +906,68 @@ root.render(<App />);`
   }
 
   const processAllProjects = async (files: FileList) => {
+    if (!files || files.length === 0) {
+      showToast('No files selected', 'warning')
+      return
+    }
+
     setIsUploading(true)
     try {
       const uploadedFiles: any[] = []
       
       for (let i = 0; i < files.length; i++) {
         const file = files[i]
-        const content = await readFileAsText(file)
-        uploadedFiles.push({
-          name: file.name,
-          type: getLanguageFromExtension(file.name),
-          size: `${(file.size / 1024).toFixed(1)}KB`,
-          content
-        })
+        
+        // Skip invalid files
+        if (!file || !file.name || file.size === 0) {
+          console.warn('Skipping invalid file:', file)
+          continue
+        }
+
+        try {
+          const content = await readFileAsText(file)
+          const language = getLanguageFromExtension(file.name)
+          
+          uploadedFiles.push({
+            name: file.name,
+            type: language,
+            size: `${(file.size / 1024).toFixed(1)}KB`,
+            content,
+            path: file.webkitRelativePath || file.name
+          })
+        } catch (error) {
+          console.error(`Failed to read file ${file.name}:`, error)
+          showToast(`Failed to read file: ${file.name}`, 'error')
+        }
       }
       
-      setWorkspaceFiles(prev => [...prev, ...uploadedFiles])
-      
-      // Notify collaborators via WebSocket
-      if (wsConnection && isWebSocketConnected) {
-        wsConnection.sendMessage({
-          type: 'file_update',
-          workspaceId,
-          userId: wsConnection.getUserId(),
-          timestamp: Date.now(),
-          data: { 
-            action: 'files_uploaded',
-            files: uploadedFiles.map(f => ({ name: f.name, size: f.size }))
+      if (uploadedFiles.length > 0) {
+        setWorkspaceFiles(prev => [...prev, ...uploadedFiles])
+        
+        // Notify collaborators via WebSocket
+        if (wsConnection && isWebSocketConnected) {
+          try {
+            wsConnection.sendMessage({
+              type: 'file_update',
+              workspaceId,
+              userId: wsConnection.getUserId(),
+              timestamp: Date.now(),
+              data: { 
+                action: 'files_uploaded',
+                files: uploadedFiles.map(f => ({ name: f.name, size: f.size }))
+              }
+            })
+          } catch (error) {
+            console.error('Failed to send WebSocket message:', error)
           }
-        })
+        }
+        
+        // Show success message
+        console.log(`Successfully imported ${uploadedFiles.length} files`)
+        showToast(`Successfully uploaded ${uploadedFiles.length} files!`, 'success')
+      } else {
+        showToast('No valid files to upload', 'warning')
       }
-      
-      // Show success message
-      console.log(`Successfully imported ${uploadedFiles.length} files`)
-      
-      // Show success notification
-      showToast(`Successfully uploaded ${uploadedFiles.length} files!`, 'success')
     } catch (error) {
       console.error('Error importing projects:', error)
       showToast('Error uploading files', 'error')
@@ -616,15 +978,39 @@ root.render(<App />);`
 
   const readFileAsText = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
+      if (!file) {
+        reject(new Error('Invalid file provided'))
+        return
+      }
+      
       const reader = new FileReader()
-      reader.onload = (e) => resolve(e.target?.result as string)
-      reader.onerror = () => reject(new Error(`Failed to read file: ${file.name}`))
-      reader.readAsText(file)
+      reader.onload = (e) => {
+        const result = e.target?.result
+        if (typeof result === 'string') {
+          resolve(result)
+        } else {
+          reject(new Error('Failed to read file as text'))
+        }
+      }
+      reader.onerror = () => {
+        reject(new Error(`Failed to read file: ${file.name || 'unknown'}`))
+      }
+      
+      try {
+        reader.readAsText(file)
+      } catch (error) {
+        reject(new Error(`Failed to start reading file: ${file.name || 'unknown'}`))
+      }
     })
   }
 
   const getLanguageFromExtension = (filename: string): string => {
+    if (!filename || typeof filename !== 'string') {
+      return 'plaintext'
+    }
+    
     const ext = filename.split('.').pop()?.toLowerCase()
+    
     switch (ext) {
       case 'html': return 'html'
       case 'css': return 'css'
@@ -636,6 +1022,21 @@ root.render(<App />);`
       case 'md': return 'markdown'
       case 'xml': return 'xml'
       case 'svg': return 'xml'
+      case 'txt': return 'plaintext'
+      case 'yml': return 'yaml'
+      case 'yaml': return 'yaml'
+      case 'csv': return 'csv'
+      case 'sql': return 'sql'
+      case 'py': return 'python'
+      case 'php': return 'php'
+      case 'rb': return 'ruby'
+      case 'go': return 'go'
+      case 'rs': return 'rust'
+      case 'java': return 'java'
+      case 'c': return 'c'
+      case 'cpp': return 'cpp'
+      case 'h': return 'c'
+      case 'hpp': return 'cpp'
       default: return 'plaintext'
     }
   }
@@ -686,10 +1087,7 @@ root.render(<App />);`
     setShowConsole(!showConsole)
   }
 
-  const clearConsole = () => {
-    setConsoleLogs([])
-  }
-
+  
   const getDeviceStyles = () => {
     switch (previewDevice) {
       case 'mobile':
@@ -745,7 +1143,6 @@ root.render(<App />);`
   }
 
   const handleShare = (settings: any) => {
-    console.log('Share settings:', settings)
     // Share workspace via WebSocket
     if (wsConnection && isWebSocketConnected) {
       wsConnection.sendMessage({
@@ -759,11 +1156,13 @@ root.render(<App />);`
           workspaceName: projectData.title || 'Live Workspace'
         }
       })
+      showToast('Workspace shared successfully', 'success')
+    } else {
+      showToast('Cannot share workspace - offline', 'warning')
     }
   }
 
   const handleExport = (format: 'zip' | 'github' | 'individual') => {
-    console.log('Export format:', format)
     // Track export action
     if (wsConnection && isWebSocketConnected) {
       wsConnection.sendMessage({
@@ -777,12 +1176,14 @@ root.render(<App />);`
           fileCount: workspaceFiles.length
         }
       })
+      showToast(`Exporting as ${format}`, 'success')
+    } else {
+      showToast('Cannot export - offline', 'warning')
     }
   }
 
   const handleFileSelect = (file: any) => {
-    setActiveFile(file.name)
-    setCode(file.content)
+    openFileInTab(file)
   }
 
   // File management functions
@@ -807,8 +1208,9 @@ root.render(<App />);`
     }
 
     setWorkspaceFiles(prev => [...prev, newFile])
-    setActiveFile(fullName)
-    setCode(defaultContent)
+    
+    // Open in new tab
+    openFileInTab(newFile)
 
     // Notify via WebSocket
     if (wsConnection && isWebSocketConnected) {
@@ -931,6 +1333,9 @@ root.render(<App />);`
     switch (fileType) {
       case 'javascript':
         return `// New JavaScript File
+showToast('Loading JavaScript template...', 'info')
+setTimeout(() => {
+  return `// New JavaScript File
 console.log('Hello, World!');
 
 function main() {
@@ -938,8 +1343,12 @@ function main() {
 }
 
 main();`
+        }, 100)
       case 'typescript':
         return `// New TypeScript File
+showToast('Loading TypeScript template...', 'info')
+setTimeout(() => {
+          return `// New TypeScript File
 console.log('Hello, World!');
 
 function main(): void {
@@ -947,6 +1356,7 @@ function main(): void {
 }
 
 main();`
+        }, 100)
       case 'html':
         return `<!DOCTYPE html>
 <html lang="en">
@@ -1125,19 +1535,24 @@ console.log('Example code');
         break
       case 'view-source':
         // View source code
-        console.log('View source')
+        showToast('Viewing source code', 'info')
         break
       case 'copy-code':
         handleCopyCode()
+        showToast('Code copied to clipboard', 'success')
         break
       case 'open-new-tab':
         if (previewUrl) {
           window.open(previewUrl, '_blank')
+          showToast('Opening in new tab', 'success')
         }
         break
       case 'share-link':
         if (previewUrl) {
           navigator.clipboard.writeText(window.location.href)
+          showToast('Link copied to clipboard', 'success')
+        } else {
+          showToast('No preview available to share', 'warning')
         }
         break
     }
@@ -1392,6 +1807,64 @@ console.log('Example code');
         <div className={`flex flex-col ${
           isSplitScreen ? (splitDirection === 'vertical' ? 'flex-1' : 'flex-1') : 'flex-1'
         }`}>
+          {/* File Tabs - VS Code Style */}
+          <div className="bg-gray-800 border-b border-gray-700 flex items-center overflow-x-auto">
+            <div className="flex items-center min-w-full">
+              {tabOrder.map(tabId => {
+                const tab = openTabs.find(t => t.id === tabId)
+                if (!tab) return null
+                
+                return (
+                  <div
+                    key={tab.id}
+                    draggable
+                    onDragStart={() => handleTabDragStart(tab.id)}
+                    onDragOver={handleTabDragOver}
+                    onDrop={(e) => handleTabDrop(tab.id, e)}
+                    onClick={() => openFileInTab({ name: tab.name, content: tab.content })}
+                    className={`group flex items-center gap-2 px-3 py-2 border-r border-gray-600 cursor-pointer transition-all duration-200 ${
+                      tab.isActive
+                        ? 'bg-gray-900 text-white border-t-2 border-t-blue-500'
+                        : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white'
+                    }`}
+                  >
+                    <FileText className="w-3 h-3 flex-shrink-0" />
+                    <span className="text-sm font-medium truncate max-w-[120px]">
+                      {tab.name}
+                    </span>
+                    {tab.isDirty && (
+                      <span className="text-yellow-400 text-xs">•</span>
+                    )}
+                    <button
+                      onClick={(e) => closeTab(tab.name, e)}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 p-0.5 hover:bg-gray-600 rounded"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+            
+            {/* Tab Actions */}
+            <div className="flex items-center gap-1 px-2 border-l border-gray-600">
+              <button
+                onClick={() => setShowNewFileDialog(true)}
+                className="p-1 text-gray-400 hover:text-white hover:bg-gray-700 rounded transition-colors"
+                title="New File"
+              >
+                <Plus className="w-3 h-3" />
+              </button>
+              <button
+                onClick={() => setShowFileUploader(true)}
+                className="p-1 text-gray-400 hover:text-white hover:bg-gray-700 rounded transition-colors"
+                title="Open File"
+              >
+                <FolderOpen className="w-3 h-3" />
+              </button>
+            </div>
+          </div>
+
           {/* Enhanced Tabs */}
           <div className="bg-gray-800 border-b border-gray-700">
             <div className="px-4 py-2">
@@ -1556,7 +2029,7 @@ console.log('Example code');
                       height="100%"
                       language="javascript"
                       value={code}
-                      onChange={(value) => setCode(value || '')}
+                      onChange={(value) => handleFileChange(value || '')}
                       theme="vs-dark"
                       onMount={(editor, monaco) => {
                         editorRef.current = editor
@@ -1564,7 +2037,12 @@ console.log('Example code');
                         // Enhanced Monaco features
                         editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
                           // Save functionality
-                          console.log('Code saved')
+                          showToast('Code saved', 'success')
+                        })
+                        
+                        // Add F12 Go to Definition
+                        editor.addCommand(monaco.KeyCode.F12, () => {
+                          goToDefinition()
                         })
                         
                         // Enable IntelliSense
@@ -1628,7 +2106,7 @@ console.log('Example code');
                         height="100%"
                         language="javascript"
                         value={code2}
-                        onChange={(value) => setCode2(value || '')}
+                        onChange={(value) => handleFileChange2(value || '')}
                         theme="vs-dark"
                         onMount={(editor, monaco) => {
                           editorRef2.current = editor
@@ -1702,38 +2180,145 @@ console.log('Example code');
 
                 {/* Console Panel */}
                 {showConsole && (
-                  <div className="w-80 bg-gray-900 border-l border-gray-700">
-                    <div className="flex items-center justify-between p-3 border-b border-gray-700">
-                      <div className="flex items-center gap-2">
-                        <Code className="w-4 h-4 text-purple-400" />
-                        <span className="text-white text-sm font-medium">Console</span>
-                        <span className="text-gray-400 text-xs">({consoleLogs.length} messages)</span>
+                  <div className="w-80 bg-gray-900 border-l border-gray-700 flex flex-col">
+                    {/* Console Header */}
+                    <div className="p-3 border-b border-gray-700">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <Code className="w-4 h-4 text-purple-400" />
+                          <span className="text-white text-sm font-medium">Console</span>
+                          <span className="text-gray-400 text-xs">({consoleLogs.length} messages)</span>
+                        </div>
+                        <button
+                          onClick={clearConsole}
+                          className="text-gray-400 hover:text-white text-xs"
+                        >
+                          Clear
+                        </button>
                       </div>
-                      <button
-                        onClick={clearConsole}
-                        className="text-gray-400 hover:text-white text-xs"
-                      >
-                        Clear
-                      </button>
+                      
+                      {/* Filter Buttons */}
+                      <div className="flex items-center gap-1 mb-2">
+                        <button
+                          onClick={() => setConsoleFilter('all')}
+                          className={`px-2 py-1 text-xs rounded transition-colors ${
+                            consoleFilter === 'all' ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-400 hover:text-white'
+                          }`}
+                        >
+                          All
+                        </button>
+                        <button
+                          onClick={() => setConsoleFilter('log')}
+                          className={`px-2 py-1 text-xs rounded transition-colors ${
+                            consoleFilter === 'log' ? 'bg-green-600 text-white' : 'bg-gray-700 text-gray-400 hover:text-white'
+                          }`}
+                        >
+                          Logs
+                        </button>
+                        <button
+                          onClick={() => setConsoleFilter('error')}
+                          className={`px-2 py-1 text-xs rounded transition-colors ${
+                            consoleFilter === 'error' ? 'bg-red-600 text-white' : 'bg-gray-700 text-gray-400 hover:text-white'
+                          }`}
+                        >
+                          Errors
+                        </button>
+                        <button
+                          onClick={() => setConsoleFilter('warn')}
+                          className={`px-2 py-1 text-xs rounded transition-colors ${
+                            consoleFilter === 'warn' ? 'bg-yellow-600 text-white' : 'bg-gray-700 text-gray-400 hover:text-white'
+                          }`}
+                        >
+                          Warnings
+                        </button>
+                      </div>
+                      
+                      {/* Search */}
+                      <input
+                        type="text"
+                        value={consoleSearch}
+                        onChange={(e) => setConsoleSearch(e.target.value)}
+                        placeholder="Search logs..."
+                        className="w-full px-2 py-1 bg-gray-700 text-white text-xs rounded border border-gray-600 focus:outline-none focus:border-blue-500"
+                      />
                     </div>
-                    <div className="p-3 overflow-y-auto h-full font-mono text-xs">
-                      {consoleLogs.length === 0 ? (
-                        <div className="text-gray-500">Console output will appear here...</div>
-                      ) : (
-                        consoleLogs.map((log, index) => (
-                          <div key={index} className={`mb-1 ${
-                            log.type === 'error' ? 'text-red-400' : 
-                            log.type === 'warn' ? 'text-yellow-400' : 
-                            'text-green-400'
-                          }`}>
-                            <span className="text-gray-500">
-                              [{new Date(log.timestamp).toLocaleTimeString()}]
-                            </span>
-                            {' '}
-                            {log.message}
+                    
+                    {/* Console Content */}
+                    <div className="flex-1 overflow-y-auto p-3 font-mono text-xs">
+                      {consoleLogs
+                        .filter(log => consoleFilter === 'all' || log.type === consoleFilter)
+                        .filter(log => !consoleSearch || log.message.includes(consoleSearch))
+                        .map((log, index) => (
+                          <div
+                            key={log.timestamp}
+                            className="group flex items-start gap-2 py-1 hover:bg-gray-800 rounded px-2 transition-colors"
+                          >
+                            {/* Log Icon */}
+                            <div className={`w-2 h-2 rounded-full mt-0.5 flex-shrink-0 ${
+                              log.type === 'error' ? 'bg-red-500' :
+                              log.type === 'warn' ? 'bg-yellow-500' :
+                              log.type === 'log' ? 'bg-green-500' : 'bg-gray-500'
+                            }`} />
+                            
+                            {/* Log Content */}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className={`font-semibold ${
+                                  log.type === 'error' ? 'text-red-400' :
+                                  log.type === 'warn' ? 'text-yellow-400' :
+                                  log.type === 'log' ? 'text-green-400' : 'text-gray-400'
+                                }`}>
+                                  {log.type.toUpperCase()}
+                                </span>
+                                <span className="text-gray-500">
+                                  {new Date(log.timestamp).toLocaleTimeString()}
+                                </span>
+                              </div>
+                              <div className={`text-gray-300 break-all ${
+                                expandedLogs.has(index) ? '' : 'truncate'
+                              }`}>
+                                {log.message}
+                              </div>
+                              {log.message.length > 100 && (
+                                <button
+                                  onClick={() => toggleLogExpansion(index)}
+                                  className="text-blue-400 hover:text-blue-300 text-xs mt-1"
+                                >
+                                  {expandedLogs.has(index) ? 'Show less' : 'Show more'}
+                                </button>
+                              )}
+                            </div>
+                            
+                            {/* Copy Button */}
+                            <button
+                              onClick={() => {
+                                navigator.clipboard.writeText(log.message)
+                                showToast('Log copied to clipboard', 'success')
+                              }}
+                              className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-gray-400 hover:text-white hover:bg-gray-700 rounded"
+                            >
+                              <Copy className="w-3 h-3" />
+                            </button>
                           </div>
-                        ))
+                        ))}
+                      
+                      {consoleLogs.filter(log => consoleFilter === 'all' || log.type === consoleFilter)
+                        .filter(log => !consoleSearch || log.message.includes(consoleSearch)).length === 0 && (
+                        <div className="text-gray-500 text-center py-8">
+                          {consoleSearch ? 'No logs match your search' : 'No logs to display'}
+                        </div>
                       )}
+                    </div>
+                    
+                    {/* Console Footer */}
+                    <div className="p-2 border-t border-gray-700 flex justify-end">
+                      <button
+                        onClick={exportConsoleLogs}
+                        className="text-gray-400 hover:text-white text-xs flex items-center gap-1"
+                      >
+                        <Download className="w-3 h-3" />
+                        Export
+                      </button>
                     </div>
                   </div>
                 )}

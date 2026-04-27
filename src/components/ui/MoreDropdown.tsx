@@ -10,8 +10,13 @@ interface DropdownItem {
   divider?: boolean
 }
 
+interface DividerItem {
+  id: string
+  divider: true
+}
+
 interface MoreDropdownProps {
-  items: DropdownItem[]
+  items: (DropdownItem | DividerItem)[]
   position?: 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left'
   size?: 'sm' | 'md' | 'lg'
   variant?: 'default' | 'minimal'
@@ -83,7 +88,9 @@ export default function MoreDropdown({
     return `${baseClasses} ${sizeClasses} ${variantClasses} ${disabledClasses} ${className}`
   }
 
-  const getItemClasses = (item: DropdownItem) => {
+  const getItemClasses = (item: DropdownItem | DividerItem) => {
+    if ('divider' in item) return ''
+    
     const baseClasses = 'flex items-center gap-2 w-full px-3 py-2 text-sm rounded transition-colors'
     const dangerClasses = item.danger ? 'text-red-400 hover:bg-red-500/10' : 'text-gray-300 hover:bg-gray-700'
     const disabledClasses = disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
@@ -91,8 +98,8 @@ export default function MoreDropdown({
     return `${baseClasses} ${dangerClasses} ${disabledClasses}`
   }
 
-  const handleItemClick = (item: DropdownItem) => {
-    if (!disabled) {
+  const handleItemClick = (item: DropdownItem | DividerItem) => {
+    if (!disabled && !('divider' in item)) {
       item.onClick()
       setIsOpen(false)
     }
@@ -116,26 +123,28 @@ export default function MoreDropdown({
           {items.map((item, index) => (
             <React.Fragment key={item.id}>
               {/* Divider */}
-              {item.divider && index > 0 && (
+              {'divider' in item && index > 0 && (
                 <div className="my-1 border-t border-gray-700" />
               )}
 
               {/* Menu Item */}
-              <button
-                onClick={() => handleItemClick(item)}
-                disabled={disabled}
-                className={getItemClasses(item)}
-              >
-                {/* Icon */}
-                <span className="flex-shrink-0 w-4 h-4">
-                  {item.icon}
-                </span>
+              {!('divider' in item) && (
+                <button
+                  onClick={() => handleItemClick(item)}
+                  disabled={disabled}
+                  className={getItemClasses(item)}
+                >
+                  {/* Icon */}
+                  <span className="flex-shrink-0 w-4 h-4">
+                    {item.icon}
+                  </span>
 
-                {/* Label */}
-                <span className="flex-1 text-left">
-                  {item.label}
-                </span>
-              </button>
+                  {/* Label */}
+                  <span className="flex-1 text-left">
+                    {item.label}
+                  </span>
+                </button>
+              )}
             </React.Fragment>
           ))}
         </div>
@@ -145,7 +154,7 @@ export default function MoreDropdown({
 }
 
 // Preset dropdown configurations
-export const createFileDropdownItems = (onAction: (action: string) => void): DropdownItem[] => [
+export const createFileDropdownItems = (onAction: (action: string) => void): (DropdownItem | DividerItem)[] => [
   {
     id: 'edit',
     label: 'Edit',
@@ -170,7 +179,7 @@ export const createFileDropdownItems = (onAction: (action: string) => void): Dro
     icon: <Download className="w-4 h-4" />,
     onClick: () => onAction('download')
   },
-  { divider: true } as any,
+  { id: 'divider-1', divider: true },
   {
     id: 'archive',
     label: 'Archive',
@@ -186,7 +195,7 @@ export const createFileDropdownItems = (onAction: (action: string) => void): Dro
   }
 ]
 
-export const createPreviewDropdownItems = (onAction: (action: string) => void): DropdownItem[] => [
+export const createPreviewDropdownItems = (onAction: (action: string) => void): (DropdownItem | DividerItem)[] => [
   {
     id: 'refresh',
     label: 'Refresh',
@@ -211,7 +220,7 @@ export const createPreviewDropdownItems = (onAction: (action: string) => void): 
     icon: <Copy className="w-4 h-4" />,
     onClick: () => onAction('copy-code')
   },
-  { divider: true } as any,
+  { id: 'divider-2', divider: true },
   {
     id: 'open-new-tab',
     label: 'Open in New Tab',
@@ -226,7 +235,7 @@ export const createPreviewDropdownItems = (onAction: (action: string) => void): 
   }
 ]
 
-export const createWorkspaceDropdownItems = (onAction: (action: string) => void): DropdownItem[] => [
+export const createWorkspaceDropdownItems = (onAction: (action: string) => void): (DropdownItem | DividerItem)[] => [
   {
     id: 'upload-files',
     label: 'Upload Files',
@@ -245,7 +254,7 @@ export const createWorkspaceDropdownItems = (onAction: (action: string) => void)
     icon: <Download className="w-4 h-4" />,
     onClick: () => onAction('export-project')
   },
-  { divider: true } as any,
+  { id: 'divider-3', divider: true },
   {
     id: 'duplicate-workspace',
     label: 'Duplicate Workspace',
@@ -258,7 +267,7 @@ export const createWorkspaceDropdownItems = (onAction: (action: string) => void)
     icon: <Star className="w-4 h-4" />,
     onClick: () => onAction('star-workspace')
   },
-  { divider: true } as any,
+  { id: 'divider-4', divider: true },
   {
     id: 'settings',
     label: 'Settings',

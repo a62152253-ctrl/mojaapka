@@ -7,7 +7,7 @@ import {
   registerUser,
 } from '../services/authService'
 import { apiClient } from '../lib/api'
-import { useToast } from './useToast'
+import { useToast } from '../components/Toast'
 
 interface AuthContextType {
   user: User | null
@@ -33,11 +33,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUserState] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const { success, error: showToast } = useToast()
+  const { toast } = useToast()
 
   const setUser = useCallback((userData: User | null) => {
-    setUserState(userData)
-    persistUserSession(userData)
+    if (userData) {
+      const enhancedUser = {
+        ...userData,
+        isLoggedIn: true,
+        loginTime: new Date().toISOString()
+      }
+      setUserState(enhancedUser)
+      persistUserSession(enhancedUser)
+    } else {
+      setUserState(null)
+      persistUserSession(null)
+    }
     setError(null)
   }, [setError])
 
@@ -82,6 +92,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setError(null)
     
     try {
+      // Simulate async operation
+      await new Promise(resolve => setTimeout(resolve, 500))
+      
       const account = authenticateUser(email, password)
 
       if (!account) {
@@ -89,17 +102,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       setUser(account)
-      success('Login successful', `Welcome back, ${account.username}!`)
+      toast.success('Login successful', `Welcome back, ${account.username}!`)
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Login failed'
       setError(errorMessage)
-      showToast('Login failed', errorMessage)
+      toast.error('Login failed', errorMessage)
       console.error('Login error:', error)
       throw error
     } finally {
       setLoading(false)
     }
-  }, [success, showToast, setUser, setError, setLoading])
+  }, [toast, setUser, setError, setLoading])
 
   const register = useCallback(async (userData: {
     email: string
@@ -111,19 +124,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setError(null)
     
     try {
+      // Simulate async operation
+      await new Promise(resolve => setTimeout(resolve, 500))
+      
       const newUser = registerUser(userData)
       setUser(newUser)
-      success('Registration successful', `Welcome to DevBloxi, ${newUser.username}!`)
+      toast.success('Registration successful', `Welcome to DevBloxi, ${newUser.username}!`)
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Registration failed'
       setError(errorMessage)
-      showToast('Registration failed', errorMessage)
+      toast.error('Registration failed', errorMessage)
       console.error('Registration error:', error)
       throw error
     } finally {
       setLoading(false)
     }
-  }, [success, showToast, setUser, setError, setLoading])
+  }, [toast, setUser, setError, setLoading])
 
   const logout = useCallback(async () => {
     setLoading(true)

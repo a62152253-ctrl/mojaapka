@@ -6,6 +6,9 @@ export interface User {
   loginTime: string;
   email?: string;
   avatar?: string;
+  avatarUrl?: string;
+  bio?: string;
+  password?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -15,7 +18,8 @@ export interface Project {
   title: string;
   description: string;
   price: number;
-  author: string;
+  basePrice?: number;
+  author: string | User;
   code: string;
   tags: string[];
   thumbnailUrl?: string;

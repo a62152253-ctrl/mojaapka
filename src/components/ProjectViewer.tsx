@@ -14,7 +14,7 @@ import {
   ShoppingCart,
   Star,
 } from 'lucide-react'
-import { ProjectsAPI } from '../api/projects'
+import { ProjectsAPI } from '../../api/projects'
 import { useAuth } from '../hooks/useAuth'
 import CommentSection from './CommentSection'
 import {

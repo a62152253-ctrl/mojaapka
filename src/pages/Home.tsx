@@ -82,13 +82,13 @@ const ProjectCard: React.FC<{ project: Project; viewMode: 'grid' | 'list' }> = (
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <img
-              src={project.author.avatarUrl}
-              alt={project.author.username}
+              src={typeof project.author === 'string' ? 'https://api.dicebear.com/9.x/shapes/svg?seed=' + project.author : (project.author.avatarUrl || 'https://api.dicebear.com/9.x/shapes/svg?seed=' + project.author.username)}
+              alt={typeof project.author === 'string' ? project.author : project.author.username}
               className="h-11 w-11 rounded-full border border-white/10 object-cover"
             />
             <div>
-              <p className="text-sm font-semibold text-white">@{project.author.username}</p>
-              <p className="text-xs text-stone-500">{project.author.bio}</p>
+              <p className="text-sm font-semibold text-white">@{typeof project.author === 'string' ? project.author : project.author.username}</p>
+              <p className="text-xs text-stone-500">{typeof project.author === 'string' ? 'Developer' : (project.author.bio || 'Developer')}</p>
             </div>
           </div>
           <div className="hidden text-right md:block">
