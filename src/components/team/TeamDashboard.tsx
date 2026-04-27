@@ -144,8 +144,8 @@ export default function TeamDashboard({ user, selectedTeam, onTeamSelect }: Team
   )
 
   const onlineMembers = currentTeam?.members.filter(member => member.isOnline) || []
-  const unreadCount = Object.values(messages).reduce((total, channelMessages) => 
-    total + channelMessages.filter(msg => !msg.read).length, 0
+  const unreadCount = Object.values(messages).reduce((total: number, channelMessages: any[]) => 
+    total + channelMessages.filter((msg: any) => !msg.read).length, 0
   )
 
   if (loading) {

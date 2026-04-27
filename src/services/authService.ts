@@ -257,3 +257,7 @@ export const sendMarketplaceMessage = (input: {
   localStorage.setItem(CONVERSATIONS_KEY, JSON.stringify(finalConversations))
   return updatedConv
 }
+
+export const getProjectConversations = (projectId: string): Conversation[] => {
+  return getConversations().filter(conv => conv.projectId === projectId)
+}

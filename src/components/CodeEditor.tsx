@@ -1,6 +1,6 @@
-import React, { useState } from 'react'
+import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import Editor from '@monaco-editor/react'
-import { FileText, Plus, X, Play, Save } from 'lucide-react'
+import { FileText, Plus, X, Play, Save, Download, Copy, RefreshCw } from 'lucide-react'
 import { CodeFile } from './editor/CodeEditorTypes'
 import { getThemeByName, defineCustomThemes } from './editor/CodeEditorThemes'
 import LanguageSelector from './editor/LanguageSelector'
@@ -27,29 +27,22 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
   language = 'javascript',
   value = '',
   onChange,
-  height = '2500px',
-  theme = 'dark',
+  height = '600px',
+  theme = 'vs-dark',
   readOnly = false,
   showPreview = false
 }) => {
-  const editorRef = React.useRef<any>(null);
-  const [previewContent, setPreviewContent] = React.useState<string>('');
-  const [previewError, setPreviewError] = React.useState<string>('');
+  const editorRef = useRef<any>(null)
+  const [previewContent, setPreviewContent] = useState<string>('')
+  const [previewError, setPreviewError] = useState<string>('')
 
-  React.useEffect(() => {
-    if (showPreview && value) {
-      generatePreview();
-    }
-  }, [value, language, showPreview]);
-
-  const generatePreview = () => {
+  const generatePreview = useCallback(() => {
     try {
-      setPreviewError('');
+      setPreviewError('')
       
       if (language === 'html') {
-        setPreviewContent(value);
+        setPreviewContent(value)
       } else if (language === 'javascript' || language === 'typescript') {
-        // For JS/TS, create a simple HTML wrapper
         const wrappedCode = `<!DOCTYPE html>
 <html>
 <head>
@@ -69,10 +62,9 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
     }
   </script>
 </body>
-</html>`;
-        setPreviewContent(wrappedCode);
+</html>`
+        setPreviewContent(wrappedCode)
       } else if (language === 'css') {
-        // For CSS, create HTML with the CSS applied
         const wrappedCSS = `<!DOCTYPE html>
 <html>
 <head>
@@ -91,24 +83,28 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
     <div>Another div element</div>
   </div>
 </body>
-</html>`;
-        setPreviewContent(wrappedCSS);
+</html>`
+        setPreviewContent(wrappedCSS)
       } else {
-        setPreviewContent('<div style="padding: 20px; font-family: Arial;">Preview not available for ' + language + '</div>');
+        setPreviewContent('<div style="padding: 20px; font-family: Arial;">Preview not available for ' + language + '</div>')
       }
     } catch (error) {
-      setPreviewError('Error generating preview');
-      setPreviewContent('');
+      setPreviewError('Error generating preview')
+      setPreviewContent('')
     }
-  };
+  }, [value, language])
 
-  const handleEditorDidMount = (editor: any, monaco: any) => {
-    editorRef.current = editor;
+  useEffect(() => {
+    if (showPreview && value) {
+      generatePreview()
+    }
+  }, [showPreview, value, generatePreview])
+
+  const handleEditorDidMount = useCallback((editor: any, monaco: any) => {
+    editorRef.current = editor
     
-    // Define custom themes
-    defineCustomThemes(monaco);
+    defineCustomThemes(monaco)
     
-    // Configure editor options
     editor.updateOptions({
       fontSize: 16,
       wordWrap: 'on',
@@ -126,14 +122,45 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
         bracketPairs: true,
         indentation: true
       }
-    });
-  };
+    })
+  }, [readOnly, theme])
 
-  const handleEditorChange = (value: string | undefined) => {
+  const handleEditorChange = useCallback((value: string | undefined) => {
     if (onChange && value !== undefined) {
-      onChange(value);
+      onChange(value)
     }
-  };
+  }, [onChange])
+
+  const editorOptions = useMemo(() => ({
+    selectOnLineNumbers: true,
+    automaticLayout: true,
+    readOnly: readOnly,
+    fontSize: 14,
+    fontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace',
+    wordWrap: 'on' as const,
+    minimap: { enabled: true },
+    scrollBeyondLastLine: false,
+    roundedSelection: false,
+    bracketPairColorization: { enabled: true },
+    guides: {
+      indentation: true,
+      bracketPairs: true
+    },
+    suggest: {
+      showKeywords: true,
+      showSnippets: true,
+      showFunctions: true
+    },
+    quickSuggestions: {
+      other: true,
+      comments: true,
+      strings: true
+    },
+    parameterHints: { enabled: true },
+    hover: { enabled: true },
+    completionItems: { snippets: true },
+    theme: theme === 'dark' ? 'vs-dark' : 'vs-light'
+  }), [readOnly, theme])
 
   if (showPreview) {
     return (
@@ -151,16 +178,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
               theme={theme === 'dark' ? 'vs-dark' : 'vs-light'}
               onChange={handleEditorChange}
               onMount={handleEditorDidMount}
-              options={{
-                selectOnLineNumbers: true,
-                automaticLayout: true,
-                readOnly: readOnly,
-                fontSize: 20,
-                wordWrap: 'on',
-                minimap: { enabled: false },
-                scrollBeyondLastLine: false,
-                theme: theme === 'dark' ? 'vs-dark' : 'vs-light'
-              }}
+              options={editorOptions}
             />
           </div>
         </div>
@@ -194,45 +212,12 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
           </div>
         </div>
       </div>
-    );
+    )
   }
-
-  return (
-    <div 
-      className="code-editor-container" 
-      style={{ 
-        height: height,
-        width: '100%',
-        backgroundColor: theme === 'dark' ? '#1e1e1e' : '#ffffff',
-        border: '1px solid #333',
-        borderRadius: '8px'
-      }}
-    >
-      <Editor
-        height="100%"
-        width="100%"
-        language={language}
-        value={value}
-        theme={theme === 'dark' ? 'vs-dark' : 'vs-light'}
-        onChange={handleEditorChange}
-        onMount={handleEditorDidMount}
-        options={{
-          selectOnLineNumbers: true,
-          automaticLayout: true,
-          readOnly: readOnly,
-          fontSize: 20,
-          wordWrap: 'on',
-          minimap: { enabled: false },
-          scrollBeyondLastLine: false,
-          theme: theme === 'dark' ? 'vs-dark' : 'vs-light'
-        }}
-      />
-    </div>
-  );
 };
 
 const CodeEditorComponent = () => {
-  const [files, setFiles] = React.useState<CodeFile[]>(() => {
+  const [files, setFiles] = useState<CodeFile[]>(() => {
     const savedFiles = loadFilesFromStorage()
     return savedFiles.length > 0 ? savedFiles : [
       createNewFile('index.html'),
@@ -249,18 +234,17 @@ const CodeEditorComponent = () => {
 
   const activeFile = files[activeFileIndex]
 
-  const updateFileContent = (content: string) => {
+  const updateFileContent = useCallback((content: string) => {
     const newFiles = [...files]
     newFiles[activeFileIndex] = { ...activeFile, content }
     setFiles(newFiles)
     
-    // Auto-update preview when HTML file changes
     if (activeFile.name.endsWith('.html')) {
       setPreviewHtml(content)
     }
-  }
+  }, [files, activeFileIndex, activeFile.name, setFiles, setPreviewHtml])
 
-  const addNewFile = () => {
+  const addNewFile = useCallback(() => {
     const fileName = prompt('Enter file name (e.g., about.html):')
     if (fileName) {
       const validationError = validateFileName(fileName, files)
@@ -270,12 +254,12 @@ const CodeEditorComponent = () => {
       }
       
       const newFile = createNewFile(fileName)
-      setFiles([...files, newFile])
+      setFiles(prev => [...prev, newFile])
       setActiveFileIndex(files.length)
     }
-  }
+  }, [files, setFiles, setActiveFileIndex])
 
-  const deleteFile = (index: number) => {
+  const deleteFile = useCallback((index: number) => {
     if (files.length > 1) {
       const newFiles = files.filter((_, i) => i !== index)
       setFiles(newFiles)
@@ -283,46 +267,43 @@ const CodeEditorComponent = () => {
         setActiveFileIndex(newFiles.length - 1)
       }
     }
-  }
+  }, [files, activeFileIndex, setFiles, setActiveFileIndex])
 
-  const generatePreview = () => {
+  const generatePreview = useCallback(() => {
     const htmlFile = files.find(f => f.name.endsWith('.html'))
     if (htmlFile) {
       setPreviewHtml(htmlFile.content)
       setIsPreviewVisible(true)
     }
-  }
+  }, [files, setPreviewHtml, setIsPreviewVisible])
 
-  // Auto-save files to localStorage
-  const debouncedSave = React.useCallback(
+  const debouncedSave = useCallback(
     debounce((filesToSave: CodeFile[]) => {
       saveFilesToStorage(filesToSave)
     }, 1000),
     []
   )
 
-  React.useEffect(() => {
+  useEffect(() => {
     debouncedSave(files)
   }, [files, debouncedSave])
 
-  // Auto-generate preview
-  const debouncedPreview = React.useCallback(
+  const debouncedPreview = useCallback(
     debounce(() => {
       if (isPreviewVisible) {
         generatePreview()
       }
     }, 500),
-    [isPreviewVisible]
+    [isPreviewVisible, generatePreview]
   )
 
-  React.useEffect(() => {
+  useEffect(() => {
     debouncedPreview()
   }, [files, debouncedPreview])
 
-  // Initialize preview on mount
-  React.useEffect(() => {
+  useEffect(() => {
     generatePreview()
-  }, [])
+  }, [generatePreview])
 
   return (
     <div className="flex h-screen bg-gray-900">
@@ -354,7 +335,7 @@ const CodeEditorComponent = () => {
                 key={index}
                 className={`flex items-center justify-between p-2 rounded cursor-pointer transition-colors ${
                   index === activeFileIndex 
-                    ? 'bg-gray-700 text-white' 
+                    ? 'bg-blue-600 text-white'
                     : 'text-gray-400 hover:bg-gray-700 hover:text-white'
                 }`}
                 onClick={() => setActiveFileIndex(index)}
@@ -366,8 +347,8 @@ const CodeEditorComponent = () => {
                 {files.length > 1 && (
                   <button
                     onClick={(e) => {
-                      e.stopPropagation()
-                      deleteFile(index)
+                      e.stopPropagation();
+                      deleteFile(index);
                     }}
                     className="text-gray-500 hover:text-red-400 transition-colors"
                   >

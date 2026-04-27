@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Calendar, ExternalLink, Heart, MapPin, MessageCircle, Star, TrendingUp } from 'lucide-react'
-import { getProjectsByAuthor, getUsers } from '../services/marketplaceService'
+import { getUsers } from '../services/authService'
 
 const UserProfile: React.FC = () => {
   const { username } = useParams()
@@ -30,9 +30,9 @@ const UserProfile: React.FC = () => {
     )
   }
 
-  const likes = publishedProjects.reduce((sum, project) => sum + (project.likesCount ?? 0), 0)
-  const comments = publishedProjects.reduce((sum, project) => sum + (project.commentsCount ?? 0), 0)
-  const totalValue = publishedProjects.reduce((sum, project) => sum + (project.price ?? 0), 0)
+  const likes = publishedProjects.reduce((sum: number, project: any) => sum + (project.likesCount ?? 0), 0)
+  const comments = publishedProjects.reduce((sum: number, project: any) => sum + (project.commentsCount ?? 0), 0)
+  const totalValue = publishedProjects.reduce((sum: number, project: any) => sum + (project.price ?? 0), 0)
   const averagePrice = publishedProjects.length ? Math.round(totalValue / publishedProjects.length) : 0
 
   const stats = [
@@ -149,7 +149,7 @@ const UserProfile: React.FC = () => {
 
               <div className="p-5">
                 <div className="flex flex-wrap gap-2">
-                  {project.tags.map((tag) => (
+                  {project.tags.map((tag: string) => (
                     <span key={tag} className="tag-pill">
                       #{tag}
                     </span>

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Navbar from '../../src/components/layout/Navbar'
-import { User, Deal } from '../../src/types'
+import { User, Deal } from '../../src/types/index'
 import { apiClient } from '../../src/lib/api'
 
 interface DealsPageProps {
@@ -91,12 +91,15 @@ export default function DealsPage({ user }: DealsPageProps) {
           </p>
         </div>
 
-        <div className="mb-6 flex gap-2">
+        <div className="flex flex-wrap gap-2" role="tablist" aria-label="Deal status filters">
           {['all', 'PENDING', 'ACCEPTED', 'REJECTED', 'COMPLETED'].map((status) => (
             <button
               key={status}
               onClick={() => setFilter(status)}
-              className={`px-4 py-2 rounded-lg transition-colors ${
+              role="tab"
+              aria-selected={filter === status}
+              aria-controls={`deals-${status}`}
+              className={`px-4 py-2 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-900 ${
                 filter === status
                   ? 'bg-blue-600 text-white'
                   : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
@@ -122,13 +125,13 @@ export default function DealsPage({ user }: DealsPageProps) {
             </p>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-4" role="tabpanel" id={`deals-${filter}`}>
             {deals.map((deal) => (
-              <div key={deal.id} className="bg-gray-800 rounded-lg p-6">
+              <div key={deal.id} className="bg-gray-800 rounded-lg p-6" role="article" aria-labelledby={`deal-title-${deal.id}`}>
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-3">
-                      <h3 className="text-lg font-semibold text-white">{deal.project.title}</h3>
+                      <h3 id={`deal-title-${deal.id}`} className="text-lg font-semibold text-white">{deal.project.title}</h3>
                       <span className={`px-2 py-1 rounded-full text-xs text-white ${getStatusColor(deal.status)}`}>
                         {getStatusIcon(deal.status)} {deal.status}
                       </span>
@@ -149,12 +152,12 @@ export default function DealsPage({ user }: DealsPageProps) {
                         </p>
                         <div className="flex items-center gap-2 mt-1">
                           <img
-                            src={user.accountType === 'DEVELOPER' ? deal.buyer.avatar : deal.seller.avatar || '/default-avatar.png'}
-                            alt={user.accountType === 'DEVELOPER' ? deal.buyer.username : deal.seller.username}
+                            src={user.accountType === 'DEVELOPER' ? deal.buyer?.avatar || '/default-avatar.png' : deal.seller?.avatar || '/default-avatar.png'}
+                            alt={user.accountType === 'DEVELOPER' ? deal.buyer?.username || 'Unknown' : deal.seller?.username || 'Unknown'}
                             className="w-6 h-6 rounded-full"
                           />
                           <span className="text-gray-300">
-                            {user.accountType === 'DEVELOPER' ? deal.buyer.username : deal.seller.username}
+                            {user.accountType === 'DEVELOPER' ? deal.buyer?.username || 'Unknown' : deal.seller?.username || 'Unknown'}
                           </span>
                         </div>
                       </div>
@@ -207,17 +210,3 @@ export default function DealsPage({ user }: DealsPageProps) {
   )
 }
 
-export async function getServerSideProps(context: any) {
-  const token = context.req.cookies.token
-  
-  if (!token) {
-    return { props: { user: null } }
-  }
-
-  try {
-    // TODO: Verify JWT token and get user data
-    return { props: { user: null } }
-  } catch (error) {
-    return { props: { user: null } }
-  }
-}

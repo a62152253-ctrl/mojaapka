@@ -378,7 +378,7 @@ export class DeploymentService {
       level,
       message,
       timestamp: new Date().toISOString(),
-      source
+      source: source as any
     }
 
     deployment.logs.push(log)
@@ -470,7 +470,8 @@ export class DeploymentService {
           id: step.id,
           name: step.name,
           status: 'PENDING',
-          logs: []
+          logs: [],
+          outputs: {}
         })),
         artifacts: [],
         logs: []
@@ -506,7 +507,7 @@ export class DeploymentService {
 
   // Environment Management
   static async getEnvironmentsByProject(projectId: string): Promise<Environment[]> {
-    return mockEnvironments.filter(environment => 
+    return mockEnvironments.filter((environment: any) => 
       environment.projectId === projectId // This would need to be added to Environment interface
     )
   }

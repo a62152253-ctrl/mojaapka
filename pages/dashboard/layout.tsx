@@ -1,8 +1,7 @@
 import { ReactNode } from 'react'
 import { useLocation } from 'react-router-dom'
-import { GetServerSideProps } from 'next'
 import DashboardSidebar from '../../src/components/layout/DashboardSidebar'
-import { User } from '../../src/types'
+import { User } from '../../src/types/index'
 
 interface DashboardLayoutProps {
   user: User
@@ -26,29 +25,3 @@ export default function DashboardLayout({ user, children }: DashboardLayoutProps
   )
 }
 
-export async function getServerSideProps(context: any) {
-  const token = context.req.cookies.token
-  
-  if (!token) {
-    return { 
-      props: { user: null },
-      redirect: {
-        destination: '/login',
-        permanent: false
-      }
-    }
-  }
-
-  try {
-    // TODO: Verify JWT token and get user data
-    return { props: { user: null } }
-  } catch (error) {
-    return { 
-      props: { user: null },
-      redirect: {
-        destination: '/login',
-        permanent: false
-      }
-    }
-  }
-}

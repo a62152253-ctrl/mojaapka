@@ -8,6 +8,7 @@ import {
   Clock,
   Play,
   Pause,
+  Eye,
   RotateCcw,
   Settings,
   Plus,

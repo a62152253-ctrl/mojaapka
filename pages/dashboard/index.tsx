@@ -1,4 +1,4 @@
-import { useDeferredValue, useEffect, useMemo, useState } from 'react'
+import { useDeferredValue, useEffect, useMemo, useState, useCallback } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
   Bell,
@@ -28,11 +28,10 @@ import {
   WorkspaceSeedFile,
   workspaceNotificationsSeed,
 } from '../../src/data/developerWorkspace'
-import { User } from '../../src/types/index'
-import {
-  Conversation,
-  Project,
-} from '../../src/types/index'
+import { User, Project, Conversation } from '../../src/types/index'
+import { usePerformanceMonitor } from '../../src/hooks/usePerformanceMonitor'
+import { useDashboardShortcuts } from '../../src/hooks/useKeyboardShortcuts'
+import { useWebSocket } from '../../src/hooks/useWebSocket'
 import {
   getUsers,
   getUserConversations,
@@ -73,6 +72,13 @@ const formatRelativeDate = (value: string) =>
 export default function DashboardPage({ user }: DashboardPageProps) {
   const navigate = useNavigate()
   const location = useLocation()
+  
+  // Performance monitoring
+  const { startMonitoring, stopMonitoring, isMonitoring } = usePerformanceMonitor('DashboardPage')
+  
+  // WebSocket for real-time updates
+  const { isConnected, lastMessage, sendMessage } = useWebSocket()
+  
   const [activeTab, setActiveTab] = useState<DashboardTab>('overview')
   const [showFilters, setShowFilters] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
@@ -103,6 +109,40 @@ export default function DashboardPage({ user }: DashboardPageProps) {
     }
   }, [navigate, user])
 
+  // Performance monitoring
+  useEffect(() => {
+    startMonitoring()
+    return () => stopMonitoring()
+  }, [startMonitoring, stopMonitoring])
+
+  // WebSocket message handling
+  useEffect(() => {
+    if (lastMessage) {
+      switch (lastMessage.type) {
+        case 'notification':
+          // Handle real-time notifications
+          setNotifications((current) => [lastMessage.data, ...current].slice(0, 12))
+          break
+        case 'deal_update':
+          // Handle deal updates
+          if (lastMessage.data.status) {
+            // Refresh deals when status changes
+            setClientConversations(getUserConversations(user.id, 'DEVELOPER'))
+          }
+          break
+        case 'project_update':
+          // Handle project updates
+          if (lastMessage.data.id) {
+            // Update project in publishedProjects
+            setPublishedProjects((current) => 
+              current.map(p => p.id === lastMessage.data.id ? { ...p, ...lastMessage.data } : p)
+            )
+          }
+          break
+      }
+    }
+  }, [lastMessage, user.id])
+
   useEffect(() => {
     const urlParams = new URLSearchParams(location.search)
     const tab = urlParams.get('tab') as DashboardTab
@@ -111,12 +151,28 @@ export default function DashboardPage({ user }: DashboardPageProps) {
     }
   }, [location.search])
 
-  const handleTabChange = (tab: DashboardTab) => {
+  const handleTabChange = useCallback((tab: DashboardTab) => {
     setActiveTab(tab)
     const urlParams = new URLSearchParams()
     urlParams.set('tab', tab)
     navigate(`${location.pathname}?${urlParams.toString()}`, { replace: true })
-  }
+  }, [navigate, location.pathname])
+
+  // Keyboard shortcuts
+  useDashboardShortcuts({
+    onSearch: () => {
+      const searchInput = document.querySelector('input[placeholder*="Search"]') as HTMLInputElement
+      searchInput?.focus()
+    },
+    onNewProject: () => navigate('/create'),
+    onRefresh: () => window.location.reload(),
+    onToggleNotifications: () => handleTabChange('notifications'),
+    onToggleSettings: () => navigate('/settings'),
+    onLogout: () => {
+      // Handle logout logic here
+      navigate('/login')
+    }
+  })
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -221,18 +277,25 @@ export default function DashboardPage({ user }: DashboardPageProps) {
     })
   }, [deferredSearch, selectedTechnology])
 
-  const unreadNotifications = notifications.filter((notification) => notification.unread).length
-  const unreadClientThreads = clientConversations.reduce(
-    (sum, conversation) => sum + conversation.unreadForDeveloper,
-    0,
+  const unreadNotifications = useMemo(() => 
+    notifications.filter((notification) => notification.unread).length, [notifications]
   )
-  const averageSnippetRating = marketplaceSnippets.reduce((sum, snippet) => sum + snippet.rating, 0) / marketplaceSnippets.length
+  const unreadClientThreads = useMemo(() => 
+    clientConversations.reduce((sum, conversation) => sum + conversation.unreadForDeveloper, 0), 
+    [clientConversations]
+  )
+  const averageSnippetRating = useMemo(() => 
+    marketplaceSnippets.length > 0 
+      ? marketplaceSnippets.reduce((sum, snippet) => sum + snippet.rating, 0) / marketplaceSnippets.length
+      : 0, 
+    [marketplaceSnippets]
+  )
 
-  const pushNotification = (notification: WorkspaceNotification) => {
+  const pushNotification = useCallback((notification: WorkspaceNotification) => {
     setNotifications((current) => [notification, ...current].slice(0, 12))
-  }
+  }, [])
 
-  const activateWorkspace = (preset: WorkspacePreset) => {
+  const activateWorkspace = useCallback((preset: WorkspacePreset) => {
     setWorkspacePreset(preset)
     setWorkspaceFiles(preset.files)
     handleTabChange('editor')
@@ -244,27 +307,27 @@ export default function DashboardPage({ user }: DashboardPageProps) {
       type: 'system',
       unread: true,
     })
-  }
+  }, [pushNotification])
 
-  const handleLaunchTemplate = (template: ProjectTemplateDefinition) => {
+  const handleLaunchTemplate = useCallback((template: ProjectTemplateDefinition) => {
     activateWorkspace({
       id: template.id,
       label: template.name,
       source: 'template',
       files: template.files,
     })
-  }
+  }, [activateWorkspace])
 
-  const handleLoadSnippet = (snippet: SnippetListing) => {
+  const handleLoadSnippet = useCallback((snippet: SnippetListing) => {
     activateWorkspace({
       id: snippet.id,
       label: snippet.title,
       source: 'snippet',
       files: snippet.files,
     })
-  }
+  }, [activateWorkspace])
 
-  const handlePublishSnippet = () => {
+  const handlePublishSnippet = useCallback(() => {
     const filesToPublish = workspaceFiles.length > 0 ? workspaceFiles : workspacePreset.files
     const tags = publishTags
       .split(',')
@@ -299,13 +362,13 @@ export default function DashboardPage({ user }: DashboardPageProps) {
       type: 'sale',
       unread: true,
     })
-  }
+  }, [workspaceFiles, workspacePreset, publishTitle, publishTags, publishPrice, user.username, pushNotification])
 
-  const markAllNotificationsAsRead = () => {
+  const markAllNotificationsAsRead = useCallback(() => {
     setNotifications((current) => current.map((notification) => ({ ...notification, unread: false })))
-  }
+  }, [])
 
-  const handleDeveloperReply = (conversation: Conversation) => {
+  const handleDeveloperReply = useCallback((conversation: Conversation) => {
     const draft = replyDrafts[conversation.id]?.trim()
     if (!draft) {
       return
@@ -328,7 +391,7 @@ export default function DashboardPage({ user }: DashboardPageProps) {
       [conversation.id]: '',
     }))
     setClientConversations(getUserConversations(user.id, 'DEVELOPER'))
-  }
+  }, [replyDrafts, user])
 
   const stats = [
     {
@@ -369,7 +432,7 @@ export default function DashboardPage({ user }: DashboardPageProps) {
     },
   ]
 
-  const tabs: Array<{ id: DashboardTab; label: string; count?: number }> = [
+  const tabs = useMemo((): Array<{ id: DashboardTab; label: string; count?: number }> => [
     { id: 'overview', label: 'Overview' },
     { id: 'projects', label: 'Publish projects', count: publishedProjects.length },
     { id: 'clients', label: 'Client chat', count: unreadClientThreads },
@@ -377,7 +440,7 @@ export default function DashboardPage({ user }: DashboardPageProps) {
     { id: 'templates', label: 'Templates', count: filteredTemplates.length },
     { id: 'editor', label: 'Workspace' },
     { id: 'notifications', label: 'Notifications', count: unreadNotifications },
-  ]
+  ], [publishedProjects.length, unreadClientThreads, filteredSnippets.length, filteredTemplates.length, unreadNotifications])
 
   return (
     <div className="min-h-screen bg-transparent">
@@ -401,15 +464,15 @@ export default function DashboardPage({ user }: DashboardPageProps) {
               </p>
 
               <div className="mt-8 flex flex-wrap gap-3">
-                <button onClick={() => handleTabChange('editor')} className="btn-primary">
+                <button onClick={() => navigate('/live-workspace')} className="btn-primary">
                   <Rocket className="h-4 w-4" />
                   Open live workspace
                 </button>
-                <button onClick={() => handleTabChange('projects')} className="btn-secondary">
+                <button onClick={() => navigate('/create')} className="btn-secondary">
                   <Box className="h-4 w-4" />
                   Publish a project
                 </button>
-                <button onClick={() => handleTabChange('snippets')} className="btn-secondary">
+                <button onClick={() => navigate('/projects')} className="btn-secondary">
                   <Store className="h-4 w-4" />
                   Browse snippets
                 </button>
@@ -547,12 +610,15 @@ export default function DashboardPage({ user }: DashboardPageProps) {
           </section>
 
           <section className="mt-8">
-            <div className="mb-5 flex flex-wrap gap-2">
+            <div className="mb-5 flex flex-wrap gap-2" role="tablist" aria-label="Dashboard sections">
               {tabs.map((tab) => (
                 <button
                   key={tab.id}
                   onClick={() => handleTabChange(tab.id)}
-                  className={`inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold transition ${
+                  role="tab"
+                  aria-selected={activeTab === tab.id}
+                  aria-controls={`tabpanel-${tab.id}`}
+                  className={`inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-teal-300 focus:ring-offset-2 focus:ring-offset-stone-900 ${
                     activeTab === tab.id
                       ? 'bg-teal-300 text-stone-950'
                       : 'border border-white/10 bg-white/[0.04] text-stone-300 hover:bg-white/[0.08]'
@@ -569,7 +635,7 @@ export default function DashboardPage({ user }: DashboardPageProps) {
             </div>
 
             {activeTab === 'overview' && (
-              <div className="grid gap-6 xl:grid-cols-[minmax(0,1.3fr),380px]">
+              <div role="tabpanel" id="tabpanel-overview" className="grid gap-6 xl:grid-cols-[minmax(0,1.3fr),380px]">
                 <section className="surface-panel-strong p-6">
                   <div className="flex items-center justify-between gap-3">
                     <div>

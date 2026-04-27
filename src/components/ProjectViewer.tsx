@@ -16,7 +16,6 @@ import {
 } from 'lucide-react'
 import { ProjectsAPI } from '../api/projects'
 import { useAuth } from '../hooks/useAuth'
-import MonacoCodeEditor from './MonacoCodeEditor'
 import CommentSection from './CommentSection'
 import {
   Conversation,
@@ -28,7 +27,7 @@ import {
   getUserConversations,
   markConversationAsRead,
   sendMarketplaceMessage,
-} from '../services/marketplaceService'
+} from '../services/authService'
 
 const ProjectViewer: React.FC = () => {
   const { user } = useAuth()
@@ -389,16 +388,7 @@ const ProjectViewer: React.FC = () => {
             </section>
           )}
 
-          {showCode && (
-            <section className="surface-panel-strong overflow-hidden">
-              <div className="border-b border-white/8 px-6 py-5">
-                <h2 className="text-2xl font-bold text-white">Source preview</h2>
-                <p className="mt-2 text-sm text-stone-400">A read-only look at the project structure and source.</p>
-              </div>
-              <MonacoCodeEditor projectId={project.id} readOnly={!showCode} />
-            </section>
-          )}
-
+          
           <CommentSection project={project as any} currentUser={user} onCommentAdded={handleCommentAdded} />
 
           {user?.accountType === 'USER' && user.id !== project.authorId && (

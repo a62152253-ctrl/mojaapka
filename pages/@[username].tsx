@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import Navbar from '../src/components/layout/Navbar'
 import ProjectCard from '../src/components/ProjectCard'
-import { User, Project } from '../src/types'
+import { User, Project } from '../src/types/index'
 import { apiClient } from '../src/lib/api'
 
 interface UserProfilePageProps {
@@ -17,21 +17,13 @@ export default function UserProfilePage({ user }: UserProfilePageProps) {
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('projects')
 
-  useEffect(() => {
-    if (username && typeof username === 'string') {
-      fetchUserProfile()
-    }
-  }, [username])
-
-  const fetchUserProfile = async () => {
+  const fetchUserProfile = useCallback(async () => {
     if (!username || typeof username !== 'string') return
 
     setLoading(true)
     try {
-      // Fetch user profile and projects
       const projectsResponse = await apiClient.getProjects()
       if (projectsResponse.success && projectsResponse.data) {
-        // Find user by username and their projects
         const userProjects = projectsResponse.data.filter(project => 
           project.author.username === username
         )
@@ -41,7 +33,6 @@ export default function UserProfilePage({ user }: UserProfilePageProps) {
           setProfileUser(author)
           setUserProjects(userProjects)
         } else {
-          // User not found
           navigate('/projects')
         }
       }
@@ -49,10 +40,15 @@ export default function UserProfilePage({ user }: UserProfilePageProps) {
       console.error('Error fetching user profile:', error)
       navigate('/projects')
     } finally {
-    } finally {
       setLoading(false)
     }
-  }
+  }, [username, navigate])
+
+  useEffect(() => {
+    if (username && typeof username === 'string') {
+      fetchUserProfile()
+    }
+  }, [username, fetchUserProfile])
 
   if (loading) {
     return (
@@ -247,17 +243,3 @@ export default function UserProfilePage({ user }: UserProfilePageProps) {
   )
 }
 
-export async function getServerSideProps(context: any) {
-  const token = context.req.cookies.token
-  
-  if (!token) {
-    return { props: { user: null } }
-  }
-
-  try {
-    // TODO: Verify JWT token and get user data
-    return { props: { user: null } }
-  } catch (error) {
-    return { props: { user: null } }
-  }
-}

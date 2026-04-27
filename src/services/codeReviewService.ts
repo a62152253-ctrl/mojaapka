@@ -255,7 +255,7 @@ export class CodeReviewService {
     const newTemplate: ReviewTemplate = {
       id: `template-${Date.now()}`,
       name: data.name,
-      description: data.description,
+      description: data.description || '',
       checklist: data.checklist,
       autoAssign: data.autoAssign,
       requiredApprovals: data.requiredApprovals,

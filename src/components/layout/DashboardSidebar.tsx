@@ -6,13 +6,13 @@ import {
   LogOut, 
   Plus,
   Bell,
-  User
+  User as UserIcon
 } from 'lucide-react'
-import { User as UserType } from '../../types/index'
+import { User } from '../../types/index'
 import { useAuth } from '../../hooks/useAuth'
 
 interface DashboardSidebarProps {
-  user: UserType
+  user: User
   activePath?: string
 }
 
@@ -41,7 +41,7 @@ export default function DashboardSidebar({ user, activePath }: DashboardSidebarP
           description: 'Overview and workspace'
         },
         {
-          icon: User,
+          icon: UserIcon,
           label: 'Profile',
           href: `/user/${user.username}`,
           description: 'View your public profile'

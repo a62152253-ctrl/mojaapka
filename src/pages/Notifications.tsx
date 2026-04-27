@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
-import { Bell, Check, X, DollarSign, MessageSquare, Heart, AlertCircle, Settings, Filter, Search, Calendar, Clock, Star, Users, Zap, ExternalLink, Reply, Forward, Archive, Trash2, Eye } from 'lucide-react'
+import { Bell, Check, X, DollarSign, MessageSquare, Heart, AlertCircle, Settings, Filter, Search, Calendar, Clock, Star, Users, Zap, ExternalLink, Reply, Forward, Archive, Trash2, Eye, FolderOpen, Briefcase } from 'lucide-react'
 
-type NotificationType = 'sale' | 'comment' | 'like' | 'system' | 'follow'
+type NotificationType = 'sale' | 'comment' | 'like' | 'system' | 'follow' | 'workspace' | 'project'
 
 interface Notification {
   id: number
@@ -154,10 +154,56 @@ export default function Notifications() {
       actions: {
         reply: true
       }
+    },
+    {
+      id: 8,
+      type: 'workspace',
+      title: 'Workspace Invitation',
+      message: 'Sarah invited you to collaborate on the E-commerce Redesign workspace',
+      timestamp: '5 minutes ago',
+      read: false,
+      priority: 'high',
+      actionUrl: '/live-workspace',
+      sender: {
+        name: 'Sarah Johnson',
+        username: 'sarah_j',
+        avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=sarah'
+      },
+      actions: {
+        reply: true,
+        forward: true
+      }
+    },
+    {
+      id: 9,
+      type: 'project',
+      title: 'Project Created Successfully',
+      message: 'Your new project "Client Dashboard" has been created and is now available in your workspace',
+      timestamp: '10 minutes ago',
+      read: false,
+      priority: 'medium',
+      actionUrl: '/live-workspace',
+      metadata: {
+        projectName: 'Client Dashboard'
+      }
+    },
+    {
+      id: 10,
+      type: 'workspace',
+      title: 'Live Session Started',
+      message: 'Mike started a live coding session in the React Components workspace',
+      timestamp: '30 minutes ago',
+      read: true,
+      priority: 'low',
+      actionUrl: '/live-workspace',
+      sender: {
+        name: 'Mike Chen',
+        username: 'mike_c'
+      }
     }
   ])
 
-  const [filter, setFilter] = useState<'all' | 'unread' | 'sales' | 'social'>('all')
+  const [filter, setFilter] = useState<'all' | 'unread' | 'sales' | 'social' | 'workspace'>('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedNotifications, setSelectedNotifications] = useState<number[]>([])
   const [showSearch, setShowSearch] = useState(false)
@@ -187,6 +233,10 @@ export default function Notifications() {
         return <AlertCircle className={`w-5 h-5 ${iconClass}`} />
       case 'follow':
         return <Users className={`w-5 h-5 ${iconClass}`} />
+      case 'workspace':
+        return <FolderOpen className={`w-5 h-5 ${iconClass}`} />
+      case 'project':
+        return <Briefcase className={`w-5 h-5 ${iconClass}`} />
       default:
         return <Bell className={`w-5 h-5 ${iconClass}`} />
     }
@@ -256,7 +306,8 @@ export default function Notifications() {
       filter === 'all' ||
       (filter === 'unread' && !notif.read) ||
       (filter === 'sales' && notif.type === 'sale') ||
-      (filter === 'social' && ['comment', 'like', 'follow'].includes(notif.type))
+      (filter === 'social' && ['comment', 'like', 'follow'].includes(notif.type)) ||
+      (filter === 'workspace' && ['workspace', 'project'].includes(notif.type))
     
     const matchesSearch = !searchQuery || 
       notif.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -403,6 +454,17 @@ export default function Notifications() {
             >
               <Users className="w-4 h-4" />
               Social
+            </button>
+            <button
+              onClick={() => setFilter('workspace')}
+              className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
+                filter === 'workspace' 
+                  ? 'bg-blue-600 text-white' 
+                  : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              <FolderOpen className="w-4 h-4" />
+              Workspace
             </button>
           </div>
         </div>

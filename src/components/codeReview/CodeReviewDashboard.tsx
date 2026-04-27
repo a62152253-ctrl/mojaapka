@@ -137,7 +137,7 @@ export default function CodeReviewDashboard({ user, projectId }: CodeReviewDashb
         reviewId,
         reviewerId: reviewer.id,
         decision,
-        comment
+        comment: comment || undefined
       })
 
       loadData() // Refresh data

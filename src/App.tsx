@@ -2,13 +2,15 @@ import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import Navbar from './components/layout/Navbar'
 import Home from './pages/Home'
 import ProjectViewer from './components/ProjectViewer'
-import CreateProject from './components/CreateProject'
+import CreateProject from './pages/CreateProject'
 import UserProfile from './pages/UserProfile'
 import Login from './pages/Login'
 import DashboardPage from '../pages/dashboard'
 import TestEditor from './pages/TestEditor'
 import Notifications from './pages/Notifications'
 import LiveWorkspace from './pages/LiveWorkspace'
+import Projects from '../pages/projects'
+import SettingsPage from '../pages/dashboard/settings'
 import { AuthProvider, useAuth } from './hooks/useAuth'
 
 function LoadingState() {
@@ -108,6 +110,22 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <LiveWorkspace />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/projects" 
+        element={
+          <ProtectedRoute>
+            <Projects />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/settings" 
+        element={
+          <ProtectedRoute>
+            <SettingsPage user={user!} />
           </ProtectedRoute>
         } 
       />

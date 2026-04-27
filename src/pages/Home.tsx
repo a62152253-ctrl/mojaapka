@@ -16,7 +16,7 @@ import {
 } from 'lucide-react'
 import { Project } from '../types/index'
 import { useNavigate } from 'react-router-dom'
-import { getProjects } from '../services/marketplaceService'
+import { ProjectService } from '../services/projectService'
 
 const formatPrice = (project: Project) => {
   const value = project.basePrice ?? project.price ?? 0
@@ -144,7 +144,7 @@ const Home: React.FC = () => {
   const navigate = useNavigate()
 
   useEffect(() => {
-    setProjects(getProjects())
+    ProjectService.getAllProjects().then(setProjects)
   }, [])
 
   const filteredProjects = projects

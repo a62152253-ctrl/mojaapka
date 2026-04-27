@@ -3,6 +3,8 @@ import { ApiResponse, AuthResponse, Project, Comment, Deal, User } from '../type
 class ApiClient {
   private baseURL: string
   private token: string | null = null
+  private cache = new Map<string, { data: any; timestamp: number }>()
+  private cacheTimeout = 5 * 60 * 1000 // 5 minutes
 
   constructor(baseURL: string = '') {
     this.baseURL = baseURL
@@ -16,6 +18,7 @@ class ApiClient {
     if (typeof window !== 'undefined') {
       localStorage.setItem('token', token)
     }
+    this.clearCache() // Clear cache when token changes
   }
 
   clearToken() {
@@ -23,12 +26,47 @@ class ApiClient {
     if (typeof window !== 'undefined') {
       localStorage.removeItem('token')
     }
+    this.clearCache()
+  }
+
+  private clearCache() {
+    this.cache.clear()
+  }
+
+  private getCacheKey(endpoint: string, options?: RequestInit): string {
+    return `${endpoint}:${JSON.stringify(options)}`
+  }
+
+  private getFromCache(key: string): any | null {
+    const cached = this.cache.get(key)
+    if (cached && Date.now() - cached.timestamp < this.cacheTimeout) {
+      return cached.data
+    }
+    if (cached) {
+      this.cache.delete(key)
+    }
+    return null
+  }
+
+  private setCache(key: string, data: any): void {
+    this.cache.set(key, { data, timestamp: Date.now() })
   }
 
   private async request<T>(
     endpoint: string,
-    options: RequestInit = {}
+    options: RequestInit = {},
+    useCache: boolean = false
   ): Promise<ApiResponse<T>> {
+    const cacheKey = this.getCacheKey(endpoint, options)
+    
+    // Try cache first for GET requests
+    if (useCache && (!options.method || options.method === 'GET')) {
+      const cached = this.getFromCache(cacheKey)
+      if (cached) {
+        return cached
+      }
+    }
+
     const url = `${this.baseURL}/api${endpoint}`
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -39,18 +77,37 @@ class ApiClient {
       headers.Authorization = `Bearer ${this.token}`
     }
 
-    const response = await fetch(url, {
-      ...options,
-      headers,
-    })
+    try {
+      const response = await fetch(url, {
+        ...options,
+        headers,
+        signal: AbortSignal.timeout(10000), // 10 second timeout
+      })
 
-    const data = await response.json()
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Request failed' }))
+        throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`)
+      }
 
-    if (!response.ok) {
-      throw new Error(data.error || 'Request failed')
+      const data = await response.json()
+      
+      // Cache successful GET responses
+      if (useCache && (!options.method || options.method === 'GET')) {
+        this.setCache(cacheKey, data)
+      }
+      
+      return data
+    } catch (error) {
+      // Enhanced error logging
+      console.error('API Request Error:', {
+        endpoint,
+        method: options.method || 'GET',
+        error: error instanceof Error ? error.message : 'Unknown error',
+        timestamp: new Date().toISOString()
+      })
+      
+      throw error
     }
-
-    return data
   }
 
   // Auth
@@ -112,11 +169,11 @@ class ApiClient {
     }
 
     const query = searchParams.toString()
-    return this.request<Project[]>(`/projects${query ? `?${query}` : ''}`)
+    return this.request<Project[]>(`/projects${query ? `?${query}` : ''}`, {}, true)
   }
 
   async getProject(id: string): Promise<ApiResponse<Project>> {
-    return this.request<Project>(`/projects/${id}`)
+    return this.request<Project>(`/projects/${id}`, {}, true)
   }
 
   async createProject(projectData: Partial<Project>): Promise<ApiResponse<Project>> {
@@ -156,7 +213,7 @@ class ApiClient {
 
   // Comments
   async getComments(projectId: string): Promise<ApiResponse<Comment[]>> {
-    return this.request<Comment[]>(`/comments?projectId=${projectId}`)
+    return this.request<Comment[]>(`/comments?projectId=${projectId}`, {}, true)
   }
 
   async addComment(content: string, projectId: string): Promise<ApiResponse<Comment>> {
@@ -184,7 +241,7 @@ class ApiClient {
     }
 
     const query = searchParams.toString()
-    return this.request<Deal[]>(`/deals${query ? `?${query}` : ''}`)
+    return this.request<Deal[]>(`/deals${query ? `?${query}` : ''}`, {}, true)
   }
 
   async createDeal(dealData: Partial<Deal>): Promise<ApiResponse<Deal>> {
@@ -210,23 +267,23 @@ class ApiClient {
     recentActivity: number
     savedMoney: number
   }>> {
-    return this.request(`/users/${userId}/stats`)
+    return this.request(`/users/${userId}/stats`, {}, true)
   }
 
   async getUserLikes(userId: string): Promise<ApiResponse<Project[]>> {
-    return this.request<Project[]>(`/users/${userId}/likes`)
+    return this.request<Project[]>(`/users/${userId}/likes`, {}, true)
   }
 
   async getUserComments(userId: string): Promise<ApiResponse<Comment[]>> {
-    return this.request<Comment[]>(`/users/${userId}/comments`)
+    return this.request<Comment[]>(`/users/${userId}/comments`, {}, true)
   }
 
   async getUserProjects(userId: string): Promise<ApiResponse<Project[]>> {
-    return this.request<Project[]>(`/users/${userId}/projects`)
+    return this.request<Project[]>(`/users/${userId}/projects`, {}, true)
   }
 
   async getDeal(id: string): Promise<ApiResponse<Deal>> {
-    return this.request<Deal>(`/deals/${id}`)
+    return this.request<Deal>(`/deals/${id}`, {}, true)
   }
 
   async updateDealStatus(id: string, status: string): Promise<ApiResponse<Deal>> {
@@ -238,7 +295,7 @@ class ApiClient {
 
   // User
   async getCurrentUser(): Promise<ApiResponse<User>> {
-    return this.request<User>('/auth/me')
+    return this.request<User>('/auth/me', {}, true)
   }
 
   async updateProfile(userData: { username?: string; bio?: string }): Promise<ApiResponse<User>> {

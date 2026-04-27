@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
+// @ts-ignore
 import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd'
 import {
   Plus,
@@ -400,7 +401,7 @@ export default function KanbanBoardComponent({ user, boardId }: KanbanBoardProps
 
                   {/* Cards */}
                   <Droppable droppableId={column.id}>
-                    {(provided, snapshot) => (
+                    {(provided: any, snapshot: any) => (
                       <div
                         ref={provided.innerRef}
                         {...provided.droppableProps}
@@ -415,7 +416,7 @@ export default function KanbanBoardComponent({ user, boardId }: KanbanBoardProps
                           )
                           .map((card, index) => (
                             <Draggable key={card.id} draggableId={card.id} index={index}>
-                              {(provided, snapshot) => (
+                              {(provided: any, snapshot: any) => (
                                 <div
                                   ref={provided.innerRef}
                                   {...provided.draggableProps}
