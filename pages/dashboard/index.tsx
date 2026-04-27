@@ -234,7 +234,7 @@ export default function DashboardPage({ user }: DashboardPageProps) {
       template.technologies.forEach((technology) => entries.add(technology))
     })
 
-    return ['all', ...Array.from(entries).sort()]
+    return ['all', ...Array.from(entries).sort((a, b) => a.localeCompare(b))]
   }, [marketplaceSnippets])
 
   const filteredSnippets = useMemo(() => {

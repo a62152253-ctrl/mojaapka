@@ -32,17 +32,17 @@ export default function Login() {
   const formRef = useRef<HTMLDivElement>(null)
 
   // Password strength checker
+  const calculatePasswordStrength = (password: string): number => {
+    let strength = 0
+    if (password.length >= 8) strength += 25
+    if (password.match(/[a-z]/) && password.match(/[A-Z]/)) strength += 25
+    if (password.match(/[0-9]/)) strength += 25
+    if (password.match(/[^a-zA-Z0-9]/)) strength += 25
+    return strength
+  }
+
   useEffect(() => {
-    if (formData.password) {
-      let strength = 0
-      if (formData.password.length >= 8) strength += 25
-      if (formData.password.match(/[a-z]/) && formData.password.match(/[A-Z]/)) strength += 25
-      if (formData.password.match(/[0-9]/)) strength += 25
-      if (formData.password.match(/[^a-zA-Z0-9]/)) strength += 25
-      setPasswordStrength(strength)
-    } else {
-      setPasswordStrength(0)
-    }
+    setPasswordStrength(formData.password ? calculatePasswordStrength(formData.password) : 0)
   }, [formData.password])
 
   // Animation for view changes
@@ -73,7 +73,7 @@ export default function Login() {
     }
   }, [navigate])
 
-  const validateRegistration = () => {
+  const validateRegistration = (): boolean => {
     if (formData.password.length < 6) {
       setError('Password must be at least 6 characters')
       return false
@@ -92,7 +92,7 @@ export default function Login() {
     return true
   }
 
-  const validateEmail = (email: string) => {
+  const validateEmail = (email: string): boolean => {
     return email.includes('@')
   }
 
@@ -155,6 +155,20 @@ export default function Login() {
     setTimeout(() => switchView('login'), 2000)
   }
 
+  const handleAuthAction = async (action: 'login' | 'register' | 'forgot') => {
+    switch (action) {
+      case 'login':
+        await handleLogin()
+        break
+      case 'register':
+        await handleRegister()
+        break
+      case 'forgot':
+        await handleForgotPassword()
+        break
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
@@ -162,13 +176,7 @@ export default function Login() {
     setLoading(true)
     
     try {
-      if (currentView === 'login') {
-        await handleLogin()
-      } else if (currentView === 'register') {
-        await handleRegister()
-      } else if (currentView === 'forgot') {
-        await handleForgotPassword()
-      }
+      await handleAuthAction(currentView)
     } catch (error) {
       console.error('Auth error:', error)
       setError('An error occurred. Please try again.')

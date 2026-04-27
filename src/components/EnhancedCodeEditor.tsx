@@ -602,89 +602,121 @@ export default function EnhancedCodeEditor({
         className="hidden"
       />
 
-      {/* Settings Modal */}
-      {showSettings && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-gray-800 rounded-lg p-6 w-96">
-            <h3 className="text-white font-semibold mb-4">Editor Settings</h3>
-            
-            <div className="space-y-4">
-              <div>
-                <label className="block text-gray-300 text-sm mb-2">Theme</label>
-                <select
-                  value={settings.theme}
-                  onChange={(e) => setSettings({...settings, theme: e.target.value as any})}
-                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white"
-                >
-                  <option value="vs-dark">Dark</option>
-                  <option value="light">Light</option>
-                  <option value="dark">Dark (Legacy)</option>
-                </select>
-              </div>
-              
-              <div>
-                <label className="block text-gray-300 text-sm mb-2">Font Size: {settings.fontSize}px</label>
-                <input
-                  type="range"
-                  min="10"
-                  max="24"
-                  value={settings.fontSize}
-                  onChange={(e) => setSettings({...settings, fontSize: parseInt(e.target.value)})}
-                  className="w-full"
-                />
-              </div>
-              
-              <div>
-                <label className="flex items-center space-x-2 text-gray-300">
-                  <input
-                    type="checkbox"
-                    checked={settings.wordWrap === 'on'}
-                    onChange={(e) => setSettings({...settings, wordWrap: e.target.checked ? 'on' : 'off'})}
-                  />
-                  <span className="text-sm">Word Wrap</span>
-                </label>
-              </div>
-              
-              <div>
-                <label className="flex items-center space-x-2 text-gray-300">
-                  <input
-                    type="checkbox"
-                    checked={settings.minimap}
-                    onChange={(e) => setSettings({...settings, minimap: e.target.checked})}
-                  />
-                  <span className="text-sm">Show Minimap</span>
-                </label>
-              </div>
-              
-              <div>
-                <label className="flex items-center space-x-2 text-gray-300">
-                  <input
-                    type="checkbox"
-                    checked={settings.autoSave}
-                    onChange={(e) => setSettings({...settings, autoSave: e.target.checked})}
-                  />
-                  <span className="text-sm">Auto Save</span>
-                </label>
-              </div>
+  const updateSettings = (updates: Partial<EditorSettings>) => {
+    setSettings(prev => ({ ...prev, ...updates }))
+  }
+
+  const handleThemeChange = (theme: string) => {
+    updateSettings({ theme: theme as any })
+  }
+
+  const handleFontSizeChange = (fontSize: string) => {
+    updateSettings({ fontSize: parseInt(fontSize) })
+  }
+
+  const handleWordWrapToggle = (enabled: boolean) => {
+    updateSettings({ wordWrap: enabled ? 'on' : 'off' })
+  }
+
+  const handleMinimapToggle = (enabled: boolean) => {
+    updateSettings({ minimap: enabled })
+  }
+
+  const handleAutoSaveToggle = (enabled: boolean) => {
+    updateSettings({ autoSave: enabled })
+  }
+
+  const renderSettingsModal = () => {
+    if (!showSettings) return null
+
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-gray-800 rounded-lg p-6 w-96">
+          <h3 className="text-white font-semibold mb-4">Editor Settings</h3>
+          
+          <div className="space-y-4">
+            <div>
+              <label className="block text-gray-300 text-sm mb-2">Theme</label>
+              <select
+                value={settings.theme}
+                onChange={(e) => handleThemeChange(e.target.value)}
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white"
+              >
+                <option value="vs-dark">Dark</option>
+                <option value="light">Light</option>
+                <option value="dark">Dark (Legacy)</option>
+              </select>
             </div>
             
-            <div className="flex justify-end space-x-2 mt-6">
-              <button
-                onClick={() => setShowSettings(false)}
-                className="px-4 py-2 bg-gray-700 text-gray-300 rounded hover:bg-gray-600"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => setShowSettings(false)}
-                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-              >
-                Apply
-              </button>
+            <div>
+              <label className="block text-gray-300 text-sm mb-2">Font Size: {settings.fontSize}px</label>
+              <input
+                type="range"
+                min="10"
+                max="24"
+                value={settings.fontSize}
+                onChange={(e) => handleFontSizeChange(e.target.value)}
+                className="w-full"
+              />
+            </div>
+            
+            <div>
+              <label className="flex items-center space-x-2 text-gray-300">
+                <input
+                  type="checkbox"
+                  checked={settings.wordWrap === 'on'}
+                  onChange={(e) => handleWordWrapToggle(e.target.checked)}
+                />
+                <span className="text-sm">Word Wrap</span>
+              </label>
+            </div>
+            
+            <div>
+              <label className="flex items-center space-x-2 text-gray-300">
+                <input
+                  type="checkbox"
+                  checked={settings.minimap}
+                  onChange={(e) => handleMinimapToggle(e.target.checked)}
+                />
+                <span className="text-sm">Show Minimap</span>
+              </label>
+            </div>
+            
+            <div>
+              <label className="flex items-center space-x-2 text-gray-300">
+                <input
+                  type="checkbox"
+                  checked={settings.autoSave}
+                  onChange={(e) => handleAutoSaveToggle(e.target.checked)}
+                />
+                <span className="text-sm">Auto Save</span>
+              </label>
             </div>
           </div>
+          
+          <div className="flex justify-end space-x-2 mt-6">
+            <button
+              onClick={() => setShowSettings(false)}
+              className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => setShowSettings(false)}
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            >
+              Apply
+            </button>
+          </div>
         </div>
-      )}
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      {/* ... */}
+      {renderSettingsModal()}
     </div>
   )
 }
